@@ -1,0 +1,10 @@
+server:
+  port: 8080
+
+logging:
+  level:
+    root: INFO
+    com.devflow: DEBUG
+
+devflow:
+  projects-root: C:/Users/venka/.gemini/antigravity/scratch/devflow/projects
