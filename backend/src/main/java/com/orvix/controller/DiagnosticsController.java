@@ -1,6 +1,6 @@
-package com.devflow.controller;
+package com.orvix.controller;
 
-import com.devflow.service.DiagnosticsService;
+import com.orvix.service.DiagnosticsService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,3 +24,4 @@ public class DiagnosticsController {
         return ResponseEntity.ok(diagnosticsService.diagnoseFile(name, path, content));
     }
 }
+

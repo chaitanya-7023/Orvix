@@ -1,7 +1,7 @@
-package com.devflow.controller;
+package com.orvix.controller;
 
-import com.devflow.service.FilesystemService;
-import com.devflow.service.StaticAnalysisService;
+import com.orvix.service.FilesystemService;
+import com.orvix.service.StaticAnalysisService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -18,7 +18,7 @@ public class ProjectController {
     private final FilesystemService filesystemService;
     private final StaticAnalysisService staticAnalysisService;
 
-    @Value("${devflow.projects-root}")
+    @Value("${orvix.projects-root}")
     private String projectsRoot;
 
     public ProjectController(FilesystemService filesystemService, StaticAnalysisService staticAnalysisService) {
@@ -144,3 +144,4 @@ public class ProjectController {
         return ResponseEntity.ok(staticAnalysisService.readAiSummary(projectDir));
     }
 }
+

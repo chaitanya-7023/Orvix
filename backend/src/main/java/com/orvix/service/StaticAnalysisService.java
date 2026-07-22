@@ -1,4 +1,4 @@
-package com.devflow.service;
+package com.orvix.service;
 
 import org.springframework.stereotype.Service;
 
@@ -98,11 +98,11 @@ public class StaticAnalysisService {
 
     public void saveAiSummary(File projectDir, String summaryText) {
         try {
-            File dotDevFlow = new File(projectDir, ".devflow");
-            if (!dotDevFlow.exists()) {
-                dotDevFlow.mkdirs();
+            File dotOrvix = new File(projectDir, ".orvix");
+            if (!dotOrvix.exists()) {
+                dotOrvix.mkdirs();
             }
-            Files.writeString(new File(dotDevFlow, "summary.md").toPath(), summaryText);
+            Files.writeString(new File(dotOrvix, "summary.md").toPath(), summaryText);
         } catch (IOException e) {
             // ignore
         }
@@ -110,7 +110,7 @@ public class StaticAnalysisService {
 
     public String readAiSummary(File projectDir) {
         try {
-            File summaryFile = new File(projectDir, ".devflow/summary.md");
+            File summaryFile = new File(projectDir, ".orvix/summary.md");
             if (summaryFile.exists()) {
                 return Files.readString(summaryFile.toPath());
             }
@@ -120,3 +120,4 @@ public class StaticAnalysisService {
         return "No AI summary available. Re-run import or static analysis.";
     }
 }
+

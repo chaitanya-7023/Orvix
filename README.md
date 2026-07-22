@@ -1,11 +1,11 @@
-# DevFlow
+# Orvix
 
-DevFlow is an AI-powered, browser-based development environment that unifies Git importing, code editing, compilation/execution, and AI-assisted debugging into a single unified workspace.
+Orvix is an AI-powered, browser-based development environment that unifies Git importing, code editing, compilation/execution, and AI-assisted debugging into a single unified workspace.
 
 ## Project Structure
 
 ```text
-devflow/
+orvix/
 ├── backend/            # Spring Boot backend (Java 26/21)
 ├── frontend/           # React + TypeScript frontend (Vite, Tailwind, Monaco)
 └── README.md           # This file

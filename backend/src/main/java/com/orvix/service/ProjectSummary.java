@@ -1,4 +1,4 @@
-package com.devflow.service;
+package com.orvix.service;
 
 import java.util.List;
 
@@ -11,3 +11,4 @@ public record ProjectSummary(
     List<String> importantFiles,
     String path
 ) {}
+

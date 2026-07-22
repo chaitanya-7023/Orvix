@@ -1,4 +1,4 @@
-package com.devflow.service;
+package com.orvix.service;
 
 import org.springframework.stereotype.Service;
 
@@ -33,7 +33,7 @@ public class DiagnosticsService {
         File projectDir = filesystemService.getProjectDirectory(projectName);
         Path tempDir;
         try {
-            tempDir = Files.createTempDirectory("devflow_diagnostics_");
+            tempDir = Files.createTempDirectory("orvix_diagnostics_");
         } catch (IOException e) {
             return Collections.emptyList();
         }
@@ -221,3 +221,4 @@ public class DiagnosticsService {
             String code
     ) {}
 }
+

@@ -422,7 +422,7 @@ export default function App() {
         {/* Navigation */}
         <header className="flex justify-between items-center p-5 border-b border-border bg-card">
           <div className="flex items-center space-x-2">
-            <span className="font-bold text-xl text-primary tracking-tight">DevFlow</span>
+            <span className="font-bold text-xl text-primary tracking-tight">Orvix</span>
             <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-mono">MVP</span>
           </div>
           <button
@@ -526,7 +526,7 @@ export default function App() {
         </main>
 
         <footer className="p-5 border-t border-border text-center text-xs text-muted-foreground bg-card select-none">
-          DevFlow MVP IDE © 2026. Made with React, Spring Boot, JGit & Gemini API.
+          Orvix MVP IDE © 2026. Made with React, Spring Boot, JGit & Gemini API.
         </footer>
       </div>
     );

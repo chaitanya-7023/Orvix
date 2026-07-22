@@ -1,4 +1,4 @@
-package com.devflow.service;
+package com.orvix.service;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -15,7 +15,7 @@ import java.util.List;
 @Service
 public class FilesystemService {
 
-    @Value("${devflow.projects-root}")
+    @Value("${orvix.projects-root}")
     private String projectsRoot;
 
     public FileNode getProjectTree(String projectName) throws IOException {
@@ -231,3 +231,4 @@ public class FilesystemService {
         List<String> references
     ) {}
 }
+

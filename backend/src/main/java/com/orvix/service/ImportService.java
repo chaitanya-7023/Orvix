@@ -1,4 +1,4 @@
-package com.devflow.service;
+package com.orvix.service;
 
 import org.eclipse.jgit.api.Git;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,7 +16,7 @@ import java.util.regex.Pattern;
 @Service
 public class ImportService {
 
-    @Value("${devflow.projects-root}")
+    @Value("${orvix.projects-root}")
     private String projectsRoot;
 
     private final StaticAnalysisService staticAnalysisService;
@@ -127,3 +127,4 @@ public class ImportService {
 
     public static record ProgressEvent(String stage, String details) {}
 }
+

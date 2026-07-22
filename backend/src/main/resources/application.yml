@@ -4,7 +4,7 @@ server:
 logging:
   level:
     root: INFO
-    com.devflow: DEBUG
+    com.orvix: DEBUG
 
-devflow:
-  projects-root: C:/Users/venka/.gemini/antigravity/scratch/devflow/projects
+orvix:
+  projects-root: C:/Users/venka/.gemini/antigravity/scratch/orvix/projects

@@ -1,4 +1,4 @@
-# DevFlow local Maven runner
+# Orvix local Maven runner
 $mavenVersion = "3.9.6"
 $mavenDir = "$PSScriptRoot\maven"
 $mavenZip = "$PSScriptRoot\maven.zip"

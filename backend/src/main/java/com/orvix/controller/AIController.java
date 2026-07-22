@@ -1,6 +1,6 @@
-package com.devflow.controller;
+package com.orvix.controller;
 
-import com.devflow.service.AIService;
+import com.orvix.service.AIService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -66,3 +66,4 @@ public class AIController {
             Integer cursorCol
     ) {}
 }
+

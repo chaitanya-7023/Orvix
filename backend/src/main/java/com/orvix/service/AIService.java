@@ -1,4 +1,4 @@
-package com.devflow.service;
+package com.orvix.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -43,7 +43,7 @@ public class AIService {
         }
 
         String prompt = String.format("""
-                You are DevFlow's Repository Understanding Engine. You have analyzed a project with metadata:
+                You are Orvix's Repository Understanding Engine. You have analyzed a project with metadata:
                 Name: %s
                 Language: %s
                 Build Tool: %s
@@ -71,7 +71,7 @@ public class AIService {
         }
 
         String systemPrompt = """
-                You are the DevFlow AI Assistant. You are embedded in a browser-based IDE and help developers understand, run, and debug their code.
+                You are the Orvix AI Assistant. You are embedded in a browser-based IDE and help developers understand, run, and debug their code.
                 You are grounded in the repository context provided. Keep answers concise, highly technical, and practical.
                 Always supply direct code examples when relevant.
                 """;
@@ -126,7 +126,7 @@ public class AIService {
         
         // We will request a JSON response: {"explanation": "...", "originalCode": "...", "proposedCode": "..."}
         String prompt = String.format("""
-                You are the DevFlow AI Fix Engine. An error occurred in the file %s:
+                You are the Orvix AI Fix Engine. An error occurred in the file %s:
                 Error details: %s
                 Error line number: %d
                 
@@ -165,7 +165,7 @@ public class AIService {
         String logsText = String.join("\n", logs.subList(Math.max(0, logs.size() - 50), logs.size()));
 
         String prompt = String.format("""
-                You are DevFlow's Runtime Exception Analyzer. A Java application failed during execution.
+                You are Orvix's Runtime Exception Analyzer. A Java application failed during execution.
                 Analyze the following logs and tracebacks:
                 ```
                 %s
@@ -187,7 +187,7 @@ public class AIService {
             try {
                 ObjectNode mockJson = objectMapper.createObjectNode();
                 mockJson.put("rootCause", "Mock Exception: NullPointerException encountered.");
-                mockJson.put("affectedFile", "src/main/java/com/devflow/DevFlowApplication.java");
+                mockJson.put("affectedFile", "src/main/java/com/orvix/OrvixApplication.java");
                 mockJson.put("line", 11);
                 mockJson.put("impact", "Application crashed immediately during initialization.");
                 mockJson.put("fixRecommendation", "Check if environment configurations or dependency beans are correctly mapped.");
@@ -266,3 +266,4 @@ public class AIService {
                 summary.name(), summary.framework(), summary.buildTool(), summary.entryPoint(), summary.buildTool(), summary.framework());
     }
 }
+

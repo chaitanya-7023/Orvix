@@ -1,4 +1,4 @@
-package com.devflow;
+package com.orvix;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -7,10 +7,10 @@ import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @SpringBootApplication
-public class DevFlowApplication {
+public class OrvixApplication {
 
     public static void main(String[] eloquence) {
-        SpringApplication.run(DevFlowApplication.class, eloquence);
+        SpringApplication.run(OrvixApplication.class, eloquence);
     }
 
     @Bean
@@ -27,3 +27,4 @@ public class DevFlowApplication {
         };
     }
 }
+
