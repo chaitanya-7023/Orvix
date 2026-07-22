@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
-import { MessageSquare, Sparkles, AlertTriangle, Check, X, Copy, Lightbulb, Play, Eye } from "lucide-react";
-import { Diagnostic } from "./CodeEditor";
+import { MessageSquare, Sparkles, AlertTriangle, Check, X, Copy, Lightbulb, Eye } from "lucide-react";
+import type { Diagnostic } from "./CodeEditor";
 
 const API_BASE = window.location.hostname === "localhost" ? "http://localhost:8080" : window.location.origin;
 
@@ -21,7 +21,6 @@ interface AIAssistantProps {
   activeFileContent: string | null;
   diagnostics: Diagnostic[];
   onApplyFix: (proposedCode: string, originalCode: string) => void;
-  isDarkTheme: boolean;
   onNavigate: (filePath: string, line: number) => void;
   selectedText: string;
   cursorLine: number;
@@ -34,7 +33,6 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
   activeFileContent,
   diagnostics,
   onApplyFix,
-  isDarkTheme,
   onNavigate,
   selectedText,
   cursorLine,

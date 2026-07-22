@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
-import MonacoEditor, { Monaco } from "@monaco-editor/react";
+import MonacoEditor from "@monaco-editor/react";
+import type { Monaco } from "@monaco-editor/react";
 
 export interface Diagnostic {
   line: number;

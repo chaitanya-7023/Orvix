@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
-import { ProjectExplorer, FileNode } from "./components/ProjectExplorer";
-import { CodeEditor, Diagnostic } from "./components/CodeEditor";
+import { ProjectExplorer } from "./components/ProjectExplorer";
+import type { FileNode } from "./components/ProjectExplorer";
+import { CodeEditor } from "./components/CodeEditor";
+import type { Diagnostic } from "./components/CodeEditor";
 import { AIAssistant } from "./components/AIAssistant";
 import { ConsolePanel } from "./components/ConsolePanel";
-import { Play, Square, Save, RotateCw, Moon, Sun, ArrowLeft, GitBranch, Terminal as ConsoleIcon, ExternalLink, Settings } from "lucide-react";
+import { Play, Square, Save, RotateCw, Moon, Sun, ArrowLeft, GitBranch, Terminal as ConsoleIcon, ExternalLink, Settings, AlertTriangle } from "lucide-react";
 
 interface OpenFile {
   path: string;
@@ -11,7 +13,7 @@ interface OpenFile {
   isDirty: boolean;
 }
 
-const API_BASE = window.location.hostname === "localhost" ? "${API_BASE}" : window.location.origin;
+const API_BASE = window.location.hostname === "localhost" ? "http://localhost:8080" : window.location.origin;
 
 const IMPORT_STAGES = [
   "URL Validation",
@@ -666,7 +668,6 @@ export default function App() {
             activeFileContent={getActiveFileContent()}
             diagnostics={diagnostics}
             onApplyFix={handleApplyFix}
-            isDarkTheme={isDarkTheme}
             onNavigate={handleNavigate}
             selectedText={selectedText}
             cursorLine={cursorLine}

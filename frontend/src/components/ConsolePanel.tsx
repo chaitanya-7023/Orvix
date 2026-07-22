@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from "react";
-import { Terminal, Trash2, ArrowDown } from "lucide-react";
+import { Terminal, Trash2 } from "lucide-react";
 
 interface ConsolePanelProps {
   logs: string[];
