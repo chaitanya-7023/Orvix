@@ -50,7 +50,8 @@ export const ProjectExplorer: React.FC<ProjectExplorerProps> = ({
   // Fetch metadata when selection changes
   useEffect(() => {
     if (selectedPath && !selectedPath.endsWith("/") && selectedPath.includes(".") && projectName) {
-      fetch(`http://localhost:8080/api/projects/${projectName}/metadata?path=${encodeURIComponent(selectedPath)}`)
+      const apiBase = window.location.hostname === "localhost" ? "http://localhost:8080" : window.location.origin;
+      fetch(`${apiBase}/api/projects/${projectName}/metadata?path=${encodeURIComponent(selectedPath)}`)
         .then((res) => {
           if (res.ok) return res.json();
           throw new Error();

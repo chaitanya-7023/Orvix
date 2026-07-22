@@ -11,6 +11,8 @@ interface OpenFile {
   isDirty: boolean;
 }
 
+const API_BASE = window.location.hostname === "localhost" ? "${API_BASE}" : window.location.origin;
+
 const IMPORT_STAGES = [
   "URL Validation",
   "Cloning Repository",
@@ -76,7 +78,7 @@ export default function App() {
   // Fetch list of local projects
   const fetchProjects = async () => {
     try {
-      const res = await fetch("http://localhost:8080/api/projects");
+      const res = await fetch("${API_BASE}/api/projects");
       if (res.ok) {
         const list = await res.json();
         setProjectList(list);
@@ -95,7 +97,7 @@ export default function App() {
     setCurrentImportStage(IMPORT_STAGES[0]);
     setImportProgressText("Starting import...");
 
-    const source = new EventSource(`http://localhost:8080/api/projects/import?url=${encodeURIComponent(importUrl)}`);
+    const source = new EventSource(`${API_BASE}/api/projects/import?url=${encodeURIComponent(importUrl)}`);
     
     source.addEventListener("progress", (event: any) => {
       try {
@@ -127,7 +129,7 @@ export default function App() {
   // Load project files tree
   const loadProjectTree = async (name: string) => {
     try {
-      const res = await fetch(`http://localhost:8080/api/projects/${name}/tree`);
+      const res = await fetch(`${API_BASE}/api/projects/${name}/tree`);
       if (res.ok) {
         const tree = await res.json();
         setFileTree(tree);
@@ -147,7 +149,7 @@ export default function App() {
     }
 
     try {
-      const res = await fetch(`http://localhost:8080/api/projects/${projectName}/files?path=${encodeURIComponent(path)}`);
+      const res = await fetch(`${API_BASE}/api/projects/${projectName}/files?path=${encodeURIComponent(path)}`);
       if (res.ok) {
         const content = await res.text();
         const newFile = { path, content, isDirty: false };
@@ -172,7 +174,7 @@ export default function App() {
     }
     autoSaveTimerRef.current = setTimeout(async () => {
       try {
-        await fetch(`http://localhost:8080/api/projects/${projectName}/files?path=${encodeURIComponent(path)}`, {
+        await fetch(`${API_BASE}/api/projects/${projectName}/files?path=${encodeURIComponent(path)}`, {
           method: "POST",
           headers: { "Content-Type": "text/plain" },
           body: newContent,
@@ -201,7 +203,7 @@ export default function App() {
   const handleMoveNode = async (path: string, targetDir: string) => {
     try {
       const res = await fetch(
-        `http://localhost:8080/api/projects/${projectName}/move?path=${encodeURIComponent(path)}&targetDir=${encodeURIComponent(targetDir)}`,
+        `${API_BASE}/api/projects/${projectName}/move?path=${encodeURIComponent(path)}&targetDir=${encodeURIComponent(targetDir)}`,
         { method: "POST" }
       );
       if (res.ok) {
@@ -227,7 +229,7 @@ export default function App() {
       return;
     }
     try {
-      const res = await fetch(`http://localhost:8080/api/projects/${projectName}/diagnose?path=${encodeURIComponent(path)}`, {
+      const res = await fetch(`${API_BASE}/api/projects/${projectName}/diagnose?path=${encodeURIComponent(path)}`, {
         method: "POST",
         headers: { "Content-Type": "text/plain" },
         body: content,
@@ -256,7 +258,7 @@ export default function App() {
     if (!activeFile || !projectName) return;
 
     try {
-      const res = await fetch(`http://localhost:8080/api/projects/${projectName}/files?path=${encodeURIComponent(activeFilePath!)}`, {
+      const res = await fetch(`${API_BASE}/api/projects/${projectName}/files?path=${encodeURIComponent(activeFilePath!)}`, {
         method: "POST",
         headers: { "Content-Type": "text/plain" },
         body: activeFile.content,
@@ -295,7 +297,7 @@ export default function App() {
   const handleCreateNode = async (path: string, isFolder: boolean) => {
     try {
       const res = await fetch(
-        `http://localhost:8080/api/projects/${projectName}/create?path=${encodeURIComponent(path)}&isFolder=${isFolder}`,
+        `${API_BASE}/api/projects/${projectName}/create?path=${encodeURIComponent(path)}&isFolder=${isFolder}`,
         { method: "POST" }
       );
       if (res.ok) {
@@ -309,7 +311,7 @@ export default function App() {
   const handleDeleteNode = async (path: string) => {
     try {
       const res = await fetch(
-        `http://localhost:8080/api/projects/${projectName}/delete?path=${encodeURIComponent(path)}`,
+        `${API_BASE}/api/projects/${projectName}/delete?path=${encodeURIComponent(path)}`,
         { method: "DELETE" }
       );
       if (res.ok) {
@@ -324,7 +326,7 @@ export default function App() {
   const handleRenameNode = async (path: string, newName: string) => {
     try {
       const res = await fetch(
-        `http://localhost:8080/api/projects/${projectName}/rename?path=${encodeURIComponent(path)}&newName=${encodeURIComponent(newName)}`,
+        `${API_BASE}/api/projects/${projectName}/rename?path=${encodeURIComponent(path)}&newName=${encodeURIComponent(newName)}`,
         { method: "POST" }
       );
       if (res.ok) {
@@ -353,7 +355,7 @@ export default function App() {
     setRuntimeCrash(null);
 
     // Open connection
-    const source = new EventSource(`http://localhost:8080/api/projects/${projectName}/run`);
+    const source = new EventSource(`${API_BASE}/api/projects/${projectName}/run`);
     eventSourceRef.current = source;
 
     source.addEventListener("console", (event: any) => {
@@ -390,7 +392,7 @@ export default function App() {
       eventSourceRef.current.close();
     }
     try {
-      await fetch(`http://localhost:8080/api/projects/${projectName}/stop`, { method: "POST" });
+      await fetch(`${API_BASE}/api/projects/${projectName}/stop`, { method: "POST" });
       setLogs((prev) => [...prev, "System: Application stopped by user."]);
     } catch (e) {
       // ignore
@@ -797,3 +799,4 @@ export default function App() {
     </div>
   );
 }
+

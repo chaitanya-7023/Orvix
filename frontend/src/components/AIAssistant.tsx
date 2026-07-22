@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { MessageSquare, Sparkles, AlertTriangle, Check, X, Copy, Lightbulb, Play, Eye } from "lucide-react";
 import { Diagnostic } from "./CodeEditor";
 
+const API_BASE = window.location.hostname === "localhost" ? "http://localhost:8080" : window.location.origin;
+
 export interface FixProposal {
   explanation: string;
   originalCode: string;
@@ -61,7 +63,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
 
   const fetchInsights = async () => {
     try {
-      const res = await fetch(`http://localhost:8080/api/projects/${projectName}/summary`);
+      const res = await fetch(`${API_BASE}/api/projects/${projectName}/summary`);
       if (res.ok) {
         const text = await res.text();
         setInsights(text);
@@ -85,7 +87,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
         .map((m) => `${m.sender === "user" ? "User" : "AI"}: ${m.text}`)
         .join("\n");
 
-      const response = await fetch(`http://localhost:8080/api/projects/${projectName}/chat`, {
+      const response = await fetch(`${API_BASE}/api/projects/${projectName}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -122,7 +124,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
 
     try {
       const res = await fetch(
-        `http://localhost:8080/api/projects/${projectName}/explain-error?path=${activeFilePath}&codeLine=Line ${d.line}&error=${d.message}`,
+        `${API_BASE}/api/projects/${projectName}/explain-error?path=${activeFilePath}&codeLine=Line ${d.line}&error=${d.message}`,
         { method: "POST" }
       );
       if (res.ok) {
@@ -143,7 +145,7 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
     setFixProposal(null);
     try {
       const res = await fetch(
-        `http://localhost:8080/api/projects/${projectName}/fix-error?path=${activeFilePath}&line=${d.line}&error=${d.message}`,
+        `${API_BASE}/api/projects/${projectName}/fix-error?path=${activeFilePath}&line=${d.line}&error=${d.message}`,
         {
           method: "POST",
           headers: { "Content-Type": "text/plain" },
