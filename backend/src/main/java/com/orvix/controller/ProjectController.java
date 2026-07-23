@@ -47,7 +47,15 @@ public class ProjectController {
     @GetMapping("/{name}/tree")
     public ResponseEntity<FilesystemService.FileNode> getProjectTree(@PathVariable String name) {
         try {
-            return ResponseEntity.ok(filesystemService.getProjectTree(name));
+            FilesystemService.FileNode tree = filesystemService.getProjectTree(name);
+            try {
+                String json = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(tree);
+                org.slf4j.LoggerFactory.getLogger(ProjectController.class)
+                    .info("INFO: Explorer API response size: {} bytes", json.getBytes(java.nio.charset.StandardCharsets.UTF_8).length);
+            } catch (Exception ex) {
+                // ignore
+            }
+            return ResponseEntity.ok(tree);
         } catch (IOException e) {
             return ResponseEntity.badRequest().build();
         }

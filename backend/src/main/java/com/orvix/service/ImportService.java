@@ -70,6 +70,7 @@ public class ImportService {
 
             // 2. Clone Repository
             logger.info("INFO: Starting clone for: {}", repoUrl);
+            logger.info("INFO: Repository clone location: {}", targetDir.getAbsolutePath());
             sendProgress(emitter, "Cloning Repository", "Cloning " + repoUrl + " via JGit...");
 
             org.eclipse.jgit.lib.ProgressMonitor monitor = new org.eclipse.jgit.lib.ProgressMonitor() {

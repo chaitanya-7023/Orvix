@@ -12,18 +12,57 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-@Service
+@org.springframework.stereotype.Service
 public class FilesystemService {
+
+    private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(FilesystemService.class);
 
     @Value("${orvix.projects-root}")
     private String projectsRoot;
 
     public FileNode getProjectTree(String projectName) throws IOException {
         File projectDir = getProjectDirectory(projectName);
-        if (!projectDir.exists()) {
+        logger.info("INFO: Root project directory: {}", projectDir.getAbsolutePath());
+        
+        boolean exists = projectDir.exists();
+        boolean isDir = projectDir.isDirectory();
+        boolean hasGit = new File(projectDir, ".git").exists();
+        logger.info("INFO: Repository clone location check: exists={}, isDirectory={}, hasGit={}", exists, isDir, hasGit);
+
+        if (!exists) {
+            logger.error("ERROR: Project directory does not exist: {}", projectDir.getAbsolutePath());
             throw new IllegalArgumentException("Project directory does not exist: " + projectName);
         }
-        return buildNode(projectDir, projectDir.toPath());
+        
+        long[] counts = countFilesAndDirs(projectDir);
+        logger.info("INFO: Number of directories found: {}", counts[0]);
+        logger.info("INFO: Number of files found: {}", counts[1]);
+
+        FileNode rootNode = buildNode(projectDir, projectDir.toPath());
+        logger.info("INFO: Tree generation completed");
+        return rootNode;
+    }
+
+    private long[] countFilesAndDirs(File dir) {
+        long dirs = 0;
+        long files = 0;
+        File[] children = dir.listFiles();
+        if (children != null) {
+            for (File child : children) {
+                if (child.getName().equals(".git") || child.getName().equals(".idea") || child.getName().equals(".settings") || child.getName().equals("target") || child.getName().equals("bin")) {
+                    continue;
+                }
+                if (child.isDirectory()) {
+                    dirs++;
+                    long[] sub = countFilesAndDirs(child);
+                    dirs += sub[0];
+                    files += sub[1];
+                } else {
+                    files++;
+                }
+            }
+        }
+        return new long[]{dirs, files};
     }
 
     private FileNode buildNode(File file, Path rootPath) {

@@ -112,12 +112,16 @@ public class StaticAnalysisService {
         try {
             File summaryFile = new File(projectDir, ".orvix/summary.md");
             if (summaryFile.exists()) {
-                return Files.readString(summaryFile.toPath());
+                String content = Files.readString(summaryFile.toPath());
+                if (content.contains("⚠️ Gemini API Request Exception") || content.contains("⚠️ Gemini API Error")) {
+                    return "⚠️ AI Summary Generation Failed:\n\n" + content + "\n\nSet the `GEMINI_API_KEY` env variable correctly and re-import.";
+                }
+                return content;
             }
         } catch (IOException e) {
             // ignore
         }
-        return "No AI summary available. Re-run import or static analysis.";
+        return "⚠️ AI Summary Generation Failed. No summary file was found. Please ensure the repository was imported successfully.";
     }
 }
 
