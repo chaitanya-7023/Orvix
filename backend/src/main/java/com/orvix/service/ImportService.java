@@ -22,6 +22,8 @@ public class ImportService {
     private final StaticAnalysisService staticAnalysisService;
     private final AIService aiService;
 
+    private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(ImportService.class);
+
     public ImportService(StaticAnalysisService staticAnalysisService, AIService aiService) {
         this.staticAnalysisService = staticAnalysisService;
         this.aiService = aiService;
@@ -29,9 +31,11 @@ public class ImportService {
 
     public void importRepository(String repoUrl, SseEmitter emitter) {
         try {
-            // 1. Validate URL
+            logger.info("INFO: Starting repository import");
             sendProgress(emitter, "URL Validation", "Validating repository URL format...");
+            logger.info("INFO: Validating GitHub URL: {}", repoUrl);
             if (!isValidGithubUrl(repoUrl)) {
+                logger.error("ERROR: Invalid repository URL format: {}", repoUrl);
                 sendError(emitter, "Invalid GitHub repository URL. Must be a public github.com repository.");
                 return;
             }
@@ -41,46 +45,124 @@ public class ImportService {
 
             // If directory exists, clean it up first
             if (targetDir.exists()) {
+                logger.info("INFO: Cleaning up existing directory: {}", targetDir.getAbsolutePath());
                 sendProgress(emitter, "Cloning Repository", "Cleaning up existing directory...");
-                deleteDirectory(targetDir.toPath());
+                try {
+                    deleteDirectory(targetDir.toPath());
+                } catch (Exception e) {
+                    logger.warn("WARNING: Deletion failed. Attempting rename fallback for Windows lock: {}", targetDir.getAbsolutePath());
+                    File backupDir = new File(projectsRoot, repoName + "_deleted_" + System.currentTimeMillis());
+                    if (targetDir.renameTo(backupDir)) {
+                        new Thread(() -> {
+                            try {
+                                deleteDirectory(backupDir.toPath());
+                                logger.info("INFO: Successfully deleted renamed directory: {}", backupDir.getAbsolutePath());
+                            } catch (Exception ex) {
+                                logger.error("ERROR: Failed to delete renamed directory: {}", backupDir.getAbsolutePath(), ex);
+                            }
+                        }).start();
+                    } else {
+                        logger.error("ERROR: Cleanup failed completely. Target directory is locked.");
+                        throw new IOException("Failed to clean up existing directory. The directory is locked by another process.", e);
+                    }
+                }
             }
 
             // 2. Clone Repository
+            logger.info("INFO: Starting clone for: {}", repoUrl);
             sendProgress(emitter, "Cloning Repository", "Cloning " + repoUrl + " via JGit...");
+
+            org.eclipse.jgit.lib.ProgressMonitor monitor = new org.eclipse.jgit.lib.ProgressMonitor() {
+                private String taskTitle = "";
+                private int totalWork = 0;
+                private int completedWork = 0;
+
+                @Override
+                public void start(int totalTasks) {}
+
+                @Override
+                public void beginTask(String title, int totalWork) {
+                    this.taskTitle = title;
+                    this.totalWork = totalWork;
+                    this.completedWork = 0;
+                    try {
+                        logger.info("INFO: JGit Task - {}", title);
+                        sendProgress(emitter, "Cloning Repository", title + "...");
+                    } catch (IOException e) {
+                        logger.warn("WARNING: Emitter closed during JGit task start: {}", title);
+                    }
+                }
+
+                @Override
+                public void update(int completed) {
+                    this.completedWork += completed;
+                    if (totalWork > 0) {
+                        int percent = (int) (((double) completedWork / totalWork) * 100);
+                        if (percent % 10 == 0) {
+                            try {
+                                logger.info("INFO: JGit Clone Progress - {}: {}%", taskTitle, percent);
+                                sendProgress(emitter, "Cloning Repository", taskTitle + ": " + percent + "%");
+                            } catch (IOException e) {
+                                logger.warn("WARNING: Emitter closed during progress update");
+                            }
+                        }
+                    }
+                }
+
+                @Override
+                public void endTask() {}
+
+                @Override
+                public boolean isCancelled() {
+                    return false;
+                }
+
+                @Override
+                public void showDuration(boolean show) {}
+            };
+
             try (Git git = Git.cloneRepository()
                     .setURI(repoUrl)
                     .setDirectory(targetDir)
                     .setCloneAllBranches(false)
+                    .setTimeout(60) // 60 seconds network timeout
+                    .setProgressMonitor(monitor)
                     .call()) {
-                // clone complete
+                logger.info("INFO: Clone completed successfully for: {}", repoUrl);
             }
 
             // 3. Analyzing Repository
+            logger.info("INFO: Static analysis started for: {}", repoName);
             sendProgress(emitter, "Analyzing Repository", "Analyzing project files, build configs, and frameworks...");
             var projectSummary = staticAnalysisService.analyze(targetDir);
+            logger.info("INFO: Static analysis completed for: {}", repoName);
 
             // 4. Building Project Structure
+            logger.info("INFO: Repository indexed: {}", repoName);
             sendProgress(emitter, "Building Project Structure", "Indexing workspace directory tree...");
-            // Structure is scanned when the workspace opens
 
             // 5. Loading Files
             sendProgress(emitter, "Loading Files", "Scanning file system and preparing Monaco editor cache...");
 
             // 6. Generating AI Insights
+            logger.info("INFO: Generating AI insights via Gemini API for: {}", repoName);
             sendProgress(emitter, "Generating AI Insights", "Invoking Gemini API for architectural summary...");
             String aiInsights = aiService.generateRepositorySummary(projectSummary, targetDir);
             staticAnalysisService.saveAiSummary(targetDir, aiInsights);
+            logger.info("INFO: AI insights generated and saved");
 
             // 7. Opening Workspace
+            logger.info("INFO: Workspace created for: {}", repoName);
             sendProgress(emitter, "Opening Workspace", "Project loaded! Opening workspace...");
             
-            // Send completion message with repoName
             emitter.send(SseEmitter.event()
                     .name("complete")
                     .data(repoName));
             emitter.complete();
+            logger.info("INFO: Import completed successfully for: {}", repoName);
 
         } catch (Exception e) {
+            logger.error("ERROR: Repository import failed", e);
             sendError(emitter, "Import failed: " + e.getMessage());
         }
     }
@@ -112,8 +194,8 @@ public class ImportService {
             emitter.send(SseEmitter.event()
                     .name("error")
                     .data(errorMessage));
-            emitter.completeWithError(new RuntimeException(errorMessage));
-        } catch (IOException e) {
+            emitter.complete();
+        } catch (Exception e) {
             // ignore
         }
     }

@@ -80,7 +80,7 @@ export default function App() {
   // Fetch list of local projects
   const fetchProjects = async () => {
     try {
-      const res = await fetch("${API_BASE}/api/projects");
+      const res = await fetch(`${API_BASE}/api/projects`);
       if (res.ok) {
         const list = await res.json();
         setProjectList(list);
@@ -100,7 +100,16 @@ export default function App() {
     setImportProgressText("Starting import...");
 
     const source = new EventSource(`${API_BASE}/api/projects/import?url=${encodeURIComponent(importUrl)}`);
+    eventSourceRef.current = source;
     
+    source.onerror = (event: any) => {
+      console.error("EventSource failed:", event);
+      setImportProgressText("Error: Connection closed or import failed. Verify repository is public and reachable.");
+      source.close();
+      setImporting(false);
+      fetchProjects();
+    };
+
     source.addEventListener("progress", (event: any) => {
       try {
         const data = JSON.parse(event.data);
@@ -112,7 +121,8 @@ export default function App() {
     });
 
     source.addEventListener("error", (event: any) => {
-      setImportProgressText("Error: " + (event.data || "Could not complete import. Is repository public?"));
+      const errorMsg = event.data || "Could not complete import. Verify repository is public.";
+      setImportProgressText("Error: " + errorMsg);
       source.close();
       setImporting(false);
       fetchProjects();
