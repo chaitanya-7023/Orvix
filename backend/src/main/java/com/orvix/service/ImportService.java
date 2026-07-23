@@ -12,12 +12,29 @@ import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 @Service
 public class ImportService {
 
     @Value("${orvix.projects-root}")
     private String projectsRoot;
+
+    private File resolvedProjectsRoot;
+
+    @jakarta.annotation.PostConstruct
+    public void init() {
+        String path = projectsRoot;
+        boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win");
+        if (!isWindows && (path.startsWith("C:") || path.startsWith("C/"))) {
+            resolvedProjectsRoot = new File("./projects");
+        } else {
+            resolvedProjectsRoot = new File(path);
+        }
+        if (!resolvedProjectsRoot.exists()) {
+            resolvedProjectsRoot.mkdirs();
+        }
+    }
 
     private final StaticAnalysisService staticAnalysisService;
     private final AIService aiService;
@@ -40,8 +57,14 @@ public class ImportService {
                 return;
             }
 
+            File rootDir = resolvedProjectsRoot;
+            if (!rootDir.exists()) {
+                rootDir.mkdirs();
+                logger.info("INFO: Created projects-root directory: {}", rootDir.getAbsolutePath());
+            }
+
             String repoName = extractRepoName(repoUrl);
-            File targetDir = new File(projectsRoot, repoName);
+            File targetDir = new File(resolvedProjectsRoot, repoName).getCanonicalFile();
 
             // If directory exists, clean it up first
             if (targetDir.exists()) {
@@ -51,7 +74,7 @@ public class ImportService {
                     deleteDirectory(targetDir.toPath());
                 } catch (Exception e) {
                     logger.warn("WARNING: Deletion failed. Attempting rename fallback for Windows lock: {}", targetDir.getAbsolutePath());
-                    File backupDir = new File(projectsRoot, repoName + "_deleted_" + System.currentTimeMillis());
+                    File backupDir = new File(resolvedProjectsRoot, repoName + "_deleted_" + System.currentTimeMillis());
                     if (targetDir.renameTo(backupDir)) {
                         new Thread(() -> {
                             try {
@@ -202,10 +225,16 @@ public class ImportService {
     }
 
     private void deleteDirectory(Path path) throws IOException {
-        Files.walk(path)
-                .sorted(Comparator.reverseOrder())
-                .map(Path::toFile)
-                .forEach(File::delete);
+        try (Stream<Path> walk = Files.walk(path)) {
+            walk.sorted(Comparator.reverseOrder())
+                .forEach(p -> {
+                    try {
+                        Files.delete(p);
+                    } catch (IOException e) {
+                        throw new RuntimeException("Failed to delete " + p, e);
+                    }
+                });
+        }
     }
 
     public static record ProgressEvent(String stage, String details) {}

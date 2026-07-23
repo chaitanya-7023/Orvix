@@ -21,6 +21,22 @@ public class ProjectController {
     @Value("${orvix.projects-root}")
     private String projectsRoot;
 
+    private File resolvedProjectsRoot;
+
+    @jakarta.annotation.PostConstruct
+    public void init() {
+        String path = projectsRoot;
+        boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win");
+        if (!isWindows && (path.startsWith("C:") || path.startsWith("C/"))) {
+            resolvedProjectsRoot = new File("./projects");
+        } else {
+            resolvedProjectsRoot = new File(path);
+        }
+        if (!resolvedProjectsRoot.exists()) {
+            resolvedProjectsRoot.mkdirs();
+        }
+    }
+
     public ProjectController(FilesystemService filesystemService, StaticAnalysisService staticAnalysisService) {
         this.filesystemService = filesystemService;
         this.staticAnalysisService = staticAnalysisService;
@@ -28,7 +44,7 @@ public class ProjectController {
 
     @GetMapping
     public ResponseEntity<List<String>> listProjects() {
-        File root = new File(projectsRoot);
+        File root = resolvedProjectsRoot;
         if (!root.exists()) {
             root.mkdirs();
         }

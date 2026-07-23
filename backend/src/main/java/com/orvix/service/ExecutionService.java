@@ -44,27 +44,111 @@ public class ExecutionService {
         CompletableFuture.runAsync(() -> {
             try {
                 ProjectSummary summary = staticAnalysisService.analyze(projectDir);
+
+                List<String> javaFilesExist;
+                try (Stream<Path> walk = Files.walk(projectDir.toPath())) {
+                    javaFilesExist = walk.filter(Files::isRegularFile)
+                            .map(Path::toString)
+                            .filter(s -> s.endsWith(".java"))
+                            .collect(Collectors.toList());
+                }
+
+                if (javaFilesExist.isEmpty()) {
+                    sendEvent(emitter, "system", "Error: No Java files found to compile.");
+                    emitter.complete();
+                    return;
+                }
+
                 sendEvent(emitter, "system", "Detected build tool: " + summary.buildTool());
                 sendEvent(emitter, "system", "Framework: " + summary.framework());
                 sendEvent(emitter, "system", "Entry Point: " + summary.entryPoint());
 
                 boolean compileSuccess = false;
                 List<String> runCommand = new ArrayList<>();
+                boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win");
+                File buildDir = projectDir;
 
                 File mvnw = new File(projectDir, "mvnw.cmd");
+                File mvnwNonCmd = new File(projectDir, "mvnw");
+
+                if (!mvnw.exists() && !mvnwNonCmd.exists()) {
+                    File[] children = projectDir.listFiles();
+                    if (children != null) {
+                        for (File child : children) {
+                            if (child.isDirectory()) {
+                                if (new File(child, "mvnw.cmd").exists()) {
+                                    mvnw = new File(child, "mvnw.cmd");
+                                    buildDir = child;
+                                    break;
+                                } else if (new File(child, "mvnw").exists()) {
+                                    mvnw = new File(child, "mvnw");
+                                    buildDir = child;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    mvnw = mvnw.exists() ? mvnw : mvnwNonCmd;
+                }
+
                 File gradlew = new File(projectDir, "gradlew.bat");
+                File gradlewNonBat = new File(projectDir, "gradlew");
+
+                if (!gradlew.exists() && !gradlewNonBat.exists() && buildDir.equals(projectDir)) {
+                    File[] children = projectDir.listFiles();
+                    if (children != null) {
+                        for (File child : children) {
+                            if (child.isDirectory()) {
+                                if (new File(child, "gradlew.bat").exists()) {
+                                    gradlew = new File(child, "gradlew.bat");
+                                    buildDir = child;
+                                    break;
+                                } else if (new File(child, "gradlew").exists()) {
+                                    gradlew = new File(child, "gradlew");
+                                    buildDir = child;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                } else if (!buildDir.equals(projectDir)) {
+                    // Maven was already located in subfolder
+                } else {
+                    gradlew = gradlew.exists() ? gradlew : gradlewNonBat;
+                }
 
                 if (mvnw.exists()) {
                     sendEvent(emitter, "system", "Compiling using Maven Wrapper...");
-                    compileSuccess = runBuildProcess(projectDir, List.of("cmd.exe", "/c", "mvnw.cmd", "compile"), emitter);
+                    List<String> compileCmd = new ArrayList<>();
+                    List<String> runCmd = new ArrayList<>();
+                    if (isWindows) {
+                        String execName = mvnw.getName().endsWith(".cmd") ? mvnw.getName() : "mvnw.cmd";
+                        compileCmd.addAll(List.of("cmd.exe", "/c", execName, "compile"));
+                        runCmd.addAll(List.of("cmd.exe", "/c", execName, "spring-boot:run"));
+                    } else {
+                        compileCmd.addAll(List.of("/bin/sh", "-c", "./" + mvnw.getName() + " compile"));
+                        runCmd.addAll(List.of("/bin/sh", "-c", "./" + mvnw.getName() + " spring-boot:run"));
+                    }
+                    compileSuccess = runBuildProcess(buildDir, compileCmd, emitter);
                     if (compileSuccess) {
-                        runCommand.addAll(List.of("cmd.exe", "/c", "mvnw.cmd", "spring-boot:run"));
+                        runCommand.addAll(runCmd);
                     }
                 } else if (gradlew.exists()) {
                     sendEvent(emitter, "system", "Compiling using Gradle Wrapper...");
-                    compileSuccess = runBuildProcess(projectDir, List.of("cmd.exe", "/c", "gradlew.bat", "classes"), emitter);
+                    List<String> compileCmd = new ArrayList<>();
+                    List<String> runCmd = new ArrayList<>();
+                    if (isWindows) {
+                        String execName = gradlew.getName().endsWith(".bat") ? gradlew.getName() : "gradlew.bat";
+                        compileCmd.addAll(List.of("cmd.exe", "/c", execName, "classes"));
+                        runCmd.addAll(List.of("cmd.exe", "/c", execName, "bootRun"));
+                    } else {
+                        compileCmd.addAll(List.of("/bin/sh", "-c", "./" + gradlew.getName() + " classes"));
+                        runCmd.addAll(List.of("/bin/sh", "-c", "./" + gradlew.getName() + " bootRun"));
+                    }
+                    compileSuccess = runBuildProcess(buildDir, compileCmd, emitter);
                     if (compileSuccess) {
-                        runCommand.addAll(List.of("cmd.exe", "/c", "gradlew.bat", "bootRun"));
+                        runCommand.addAll(runCmd);
                     }
                 } else {
                     // Fallback compile: Java Compiler API or manual javac
@@ -122,7 +206,7 @@ public class ExecutionService {
 
                 sendEvent(emitter, "system", "Compilation successful! Starting application process...");
                 ProcessBuilder pb = new ProcessBuilder(runCommand);
-                pb.directory(projectDir);
+                pb.directory(buildDir);
                 pb.redirectErrorStream(true); // combine stdout and stderr
 
                 Process process = pb.start();

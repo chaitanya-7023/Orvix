@@ -13,7 +13,9 @@ interface OpenFile {
   isDirty: boolean;
 }
 
-const API_BASE = window.location.hostname === "localhost" ? "http://localhost:8080" : window.location.origin;
+const API_BASE = window.location.port === "5173"
+  ? `${window.location.protocol}//${window.location.hostname}:8080`
+  : window.location.origin;
 
 const IMPORT_STAGES = [
   "URL Validation",

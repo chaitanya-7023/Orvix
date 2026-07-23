@@ -20,6 +20,23 @@ public class FilesystemService {
     @Value("${orvix.projects-root}")
     private String projectsRoot;
 
+    private File resolvedProjectsRoot;
+
+    @jakarta.annotation.PostConstruct
+    public void init() {
+        String path = projectsRoot;
+        boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win");
+        if (!isWindows && (path.startsWith("C:") || path.startsWith("C/"))) {
+            resolvedProjectsRoot = new File("./projects");
+        } else {
+            resolvedProjectsRoot = new File(path);
+        }
+        if (!resolvedProjectsRoot.exists()) {
+            resolvedProjectsRoot.mkdirs();
+        }
+        logger.info("INFO: FilesystemService initialized. projectsRoot config: {}, resolved path: {}", projectsRoot, resolvedProjectsRoot.getAbsolutePath());
+    }
+
     public FileNode getProjectTree(String projectName) throws IOException {
         File projectDir = getProjectDirectory(projectName);
         logger.info("INFO: Root project directory: {}", projectDir.getAbsolutePath());
@@ -66,12 +83,27 @@ public class FilesystemService {
     }
 
     private FileNode buildNode(File file, Path rootPath) {
-        String name = file.getName();
-        String relativePath = rootPath.relativize(file.toPath()).toString().replace('\\', '/');
-        
-        // Root folder has empty relative path, assign its name
-        if (relativePath.isEmpty()) {
+        File canonicalFile = file;
+        try {
+            canonicalFile = file.getCanonicalFile();
+        } catch (IOException e) {
+            // ignore
+        }
+        String name = canonicalFile.getName();
+
+        String relativePath;
+        Path filePath = canonicalFile.toPath();
+        Path canonicalRootPath = rootPath;
+        try {
+            canonicalRootPath = rootPath.toFile().getCanonicalFile().toPath();
+        } catch (IOException e) {
+            // ignore
+        }
+
+        if (filePath.equals(canonicalRootPath)) {
             relativePath = "";
+        } else {
+            relativePath = canonicalRootPath.relativize(filePath).toString().replace('\\', '/');
         }
 
         boolean isDirectory = file.isDirectory();
@@ -249,7 +281,33 @@ public class FilesystemService {
         if (projectName.contains("..") || projectName.contains("/") || projectName.contains("\\")) {
             throw new SecurityException("Invalid project name");
         }
-        return new File(projectsRoot, projectName);
+
+        // OS-independent case-insensitive match check
+        File root = resolvedProjectsRoot;
+        if (root.exists() && root.isDirectory()) {
+            File[] files = root.listFiles();
+            if (files != null) {
+                for (File f : files) {
+                    if (f.isDirectory() && f.getName().equalsIgnoreCase(projectName)) {
+                        try {
+                            return f.getCanonicalFile();
+                        } catch (IOException e) {
+                            return f;
+                        }
+                    }
+                }
+            }
+        }
+
+        File rawFile = new File(resolvedProjectsRoot, projectName);
+        try {
+            if (rawFile.exists()) {
+                return rawFile.getCanonicalFile();
+            }
+        } catch (IOException e) {
+            // ignore
+        }
+        return rawFile;
     }
 
     public static record FileNode(

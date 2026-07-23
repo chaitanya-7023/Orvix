@@ -13,39 +13,87 @@ import java.util.stream.Stream;
 @Service
 public class StaticAnalysisService {
 
+    private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(StaticAnalysisService.class);
+
     public ProjectSummary analyze(File projectDir) {
         String name = projectDir.getName();
+        logger.info("INFO: Scanning project directory for build tool in: {}", projectDir.getAbsolutePath());
         String buildTool = "Unknown";
         String framework = "Plain Java";
         String language = "Java";
         String entryPoint = "Not Found";
         List<String> importantFiles = new ArrayList<>();
 
-        if (new File(projectDir, "pom.xml").exists()) {
+        File pomFile = new File(projectDir, "pom.xml");
+        if (!pomFile.exists()) {
+            File[] children = projectDir.listFiles();
+            if (children != null) {
+                for (File child : children) {
+                    if (child.isDirectory() && new File(child, "pom.xml").exists()) {
+                        pomFile = new File(child, "pom.xml");
+                        buildTool = "Maven";
+                        importantFiles.add(projectDir.toPath().relativize(pomFile.toPath()).toString().replace('\\', '/'));
+                        break;
+                    }
+                }
+            }
+        } else {
             buildTool = "Maven";
             importantFiles.add("pom.xml");
-            
+        }
+
+        if (buildTool.equals("Maven")) {
             try {
-                String pomContent = Files.readString(new File(projectDir, "pom.xml").toPath());
+                String pomContent = Files.readString(pomFile.toPath());
                 if (pomContent.contains("spring-boot")) {
                     framework = "Spring Boot Application";
                 }
             } catch (IOException e) {
                 // ignore
             }
-        } else if (new File(projectDir, "build.gradle").exists() || new File(projectDir, "build.gradle.kts").exists()) {
-            buildTool = "Gradle";
-            importantFiles.add(new File(projectDir, "build.gradle").exists() ? "build.gradle" : "build.gradle.kts");
-            
-            try {
-                Path gradlePath = new File(projectDir, "build.gradle").exists() ? 
-                        new File(projectDir, "build.gradle").toPath() : new File(projectDir, "build.gradle.kts").toPath();
-                String gradleContent = Files.readString(gradlePath);
-                if (gradleContent.contains("org.springframework.boot")) {
-                    framework = "Spring Boot Application";
+        }
+
+        if (buildTool.equals("Unknown")) {
+            File gradleFile = new File(projectDir, "build.gradle");
+            if (!gradleFile.exists()) {
+                gradleFile = new File(projectDir, "build.gradle.kts");
+            }
+            if (!gradleFile.exists()) {
+                File[] children = projectDir.listFiles();
+                if (children != null) {
+                    for (File child : children) {
+                        if (child.isDirectory()) {
+                            File subGradle = new File(child, "build.gradle");
+                            if (subGradle.exists()) {
+                                gradleFile = subGradle;
+                                buildTool = "Gradle";
+                                importantFiles.add(projectDir.toPath().relativize(gradleFile.toPath()).toString().replace('\\', '/'));
+                                break;
+                            }
+                            subGradle = new File(child, "build.gradle.kts");
+                            if (subGradle.exists()) {
+                                gradleFile = subGradle;
+                                buildTool = "Gradle";
+                                importantFiles.add(projectDir.toPath().relativize(gradleFile.toPath()).toString().replace('\\', '/'));
+                                break;
+                            }
+                        }
+                    }
                 }
-            } catch (IOException e) {
-                // ignore
+            } else {
+                buildTool = "Gradle";
+                importantFiles.add(gradleFile.getName());
+            }
+
+            if (buildTool.equals("Gradle")) {
+                try {
+                    String gradleContent = Files.readString(gradleFile.toPath());
+                    if (gradleContent.contains("org.springframework.boot")) {
+                        framework = "Spring Boot Application";
+                    }
+                } catch (IOException e) {
+                    // ignore
+                }
             }
         }
 
@@ -65,7 +113,6 @@ public class StaticAnalysisService {
                     .map(p -> {
                         String relative = projectDir.toPath().relativize(p).toString().replace('\\', '/');
                         importantFiles.add(relative);
-                        // Extract package and class name if possible
                         try {
                             String content = Files.readString(p);
                             String packageName = "";
@@ -84,6 +131,9 @@ public class StaticAnalysisService {
         } catch (IOException e) {
             // ignore
         }
+
+        logger.info("INFO: Build Tool: {}", buildTool);
+        logger.info("INFO: Entry Point: {}", entryPoint);
 
         return new ProjectSummary(
                 name,

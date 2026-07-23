@@ -2,7 +2,9 @@ import React, { useState, useEffect, useRef } from "react";
 import { MessageSquare, Sparkles, AlertTriangle, Check, X, Copy, Lightbulb, Eye } from "lucide-react";
 import type { Diagnostic } from "./CodeEditor";
 
-const API_BASE = window.location.hostname === "localhost" ? "http://localhost:8080" : window.location.origin;
+const API_BASE = window.location.port === "5173"
+  ? `${window.location.protocol}//${window.location.hostname}:8080`
+  : window.location.origin;
 
 export interface FixProposal {
   explanation: string;
