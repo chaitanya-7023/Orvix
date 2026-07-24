@@ -21,6 +21,9 @@ public class ProjectController {
     @Value("${orvix.projects-root}")
     private String projectsRoot;
 
+    @Value("${GEMINI_API_KEY:}")
+    private String geminiApiKeyVal;
+
     private File resolvedProjectsRoot;
 
     @jakarta.annotation.PostConstruct
@@ -166,6 +169,80 @@ public class ProjectController {
             return ResponseEntity.notFound().build();
         }
         return ResponseEntity.ok(staticAnalysisService.readAiSummary(projectDir));
+    }
+
+    @GetMapping("/gemini-check")
+    public ResponseEntity<String> checkGemini() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("=== GEMINI DIAGNOSTICS ===\n");
+        
+        // 1. System.getenv
+        String envKey = System.getenv("GEMINI_API_KEY");
+        boolean envConfigured = envKey != null && !envKey.isBlank();
+        sb.append("System.getenv(\"GEMINI_API_KEY\"):\n");
+        sb.append("  Configured = ").append(envConfigured).append("\n");
+        sb.append("  Length = ").append(envConfigured ? envKey.length() : 0).append("\n\n");
+        
+        // 2 & 3. Spring Boot reading env
+        boolean springConfigured = geminiApiKeyVal != null && !geminiApiKeyVal.isBlank();
+        sb.append("Spring Boot property bind (geminiApiKeyVal):\n");
+        sb.append("  Configured = ").append(springConfigured).append("\n");
+        sb.append("  Length = ").append(springConfigured ? geminiApiKeyVal.length() : 0).append("\n\n");
+        
+        // 4 & 5. AIService details
+        String resolvedKey = (envConfigured ? envKey : (springConfigured ? geminiApiKeyVal : ""));
+        boolean hasKey = !resolvedKey.isBlank();
+        sb.append("AIService Resolution:\n");
+        sb.append("  Using Env/Property variable = ").append(hasKey).append("\n");
+        sb.append("  Model name = gemini-2.5-flash\n");
+        sb.append("  API endpoint = https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent\n");
+        sb.append("  Initialization success = ").append(hasKey).append("\n\n");
+        
+        // 6 & 7. Test request
+        if (!hasKey) {
+            sb.append("Skipping simple test request because API key is missing.\n\n");
+            sb.append("=== Render Environment Setup Instructions ===\n");
+            sb.append("Render is missing the environment variable 'GEMINI_API_KEY'.\n");
+            sb.append("To add it:\n");
+            sb.append("1. Go to your Render Dashboard (https://dashboard.render.com).\n");
+            sb.append("2. Select your Web Service 'orvix-u1r4'.\n");
+            sb.append("3. Click on the 'Environment' tab in the left sidebar.\n");
+            sb.append("4. Click 'Add Environment Variable'.\n");
+            sb.append("5. Set Key = GEMINI_API_KEY and Value = [Your actual Gemini API Key from Google AI Studio].\n");
+            sb.append("6. Click 'Save Changes'. Render will automatically redeploy with the key active.\n");
+        } else {
+            sb.append("Attempting simple test request to Gemini API...\n");
+            try {
+                String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + resolvedKey;
+                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                com.fasterxml.jackson.databind.node.ObjectNode textNode = mapper.createObjectNode().put("text", "Hello");
+                com.fasterxml.jackson.databind.node.ObjectNode partNode = mapper.createObjectNode();
+                partNode.set("parts", mapper.createArrayNode().add(textNode));
+                com.fasterxml.jackson.databind.node.ObjectNode contentNode = mapper.createObjectNode();
+                contentNode.set("contents", mapper.createArrayNode().add(partNode));
+                String payload = mapper.writeValueAsString(contentNode);
+                
+                sb.append("  HTTP Request Status: Sending POST payload...\n");
+                
+                java.net.http.HttpClient httpClient = java.net.http.HttpClient.newHttpClient();
+                java.net.http.HttpRequest request = java.net.http.HttpRequest.newBuilder()
+                        .uri(java.net.URI.create(url))
+                        .header("Content-Type", "application/json")
+                        .POST(java.net.http.HttpRequest.BodyPublishers.ofString(payload))
+                        .build();
+                
+                java.net.http.HttpResponse<String> response = httpClient.send(request, java.net.http.HttpResponse.BodyHandlers.ofString());
+                sb.append("  HTTP Response Status: ").append(response.statusCode()).append("\n");
+                sb.append("  Response Body: ").append(response.body().replaceAll("\\r?\\n", " ")).append("\n");
+            } catch (Exception e) {
+                sb.append("  HTTP Request failed with exception:\n");
+                java.io.StringWriter sw = new java.io.StringWriter();
+                e.printStackTrace(new java.io.PrintWriter(sw));
+                sb.append(sw.toString()).append("\n");
+            }
+        }
+        
+        return ResponseEntity.ok(sb.toString());
     }
 }
 
