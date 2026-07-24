@@ -24,6 +24,47 @@ public class AIService {
     @Value("${orvix.mock-mode.enabled:false}")
     private boolean mockModeEnabled;
 
+    @Value("${GEMINI_MODEL:gemini-3.6-flash}")
+    private String modelEnv;
+
+    private static final java.util.List<String> FALLBACK_MODELS = java.util.List.of(
+        "gemini-3.6-flash",
+        "gemini-3.5-flash",
+        "gemini-3.5-flash-lite"
+    );
+
+    public String getModelName() {
+        String envModel = System.getenv("GEMINI_MODEL");
+        if (envModel != null && !envModel.isBlank()) {
+            return envModel;
+        }
+        if (modelEnv != null && !modelEnv.isBlank()) {
+            return modelEnv;
+        }
+        return "gemini-3.6-flash";
+    }
+
+    @jakarta.annotation.PostConstruct
+    public void logDiagnostics() {
+        String apiKey = getApiKey();
+        String model = getModelName();
+        boolean hasKey = !apiKey.isEmpty();
+        
+        System.out.println("================================");
+        System.out.println("Gemini Initialization");
+        System.out.println("API Key Present: " + hasKey);
+        System.out.println("Model:");
+        System.out.println(model);
+        System.out.println("SDK Version:");
+        System.out.println("N/A (Direct HTTP REST Client)");
+        System.out.println("Initialization:");
+        System.out.println(hasKey ? "SUCCESS" : "FAILED");
+        System.out.println("================================");
+        
+        logger.info("INFO: Gemini Initialization - API Key Present: {}, Model: {}, Initialization: {}", 
+            hasKey, model, hasKey ? "SUCCESS" : "FAILED");
+    }
+
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
@@ -230,11 +271,11 @@ public class AIService {
         return callGemini(prompt);
     }
 
-    private String callGemini(String prompt) {
+    private HttpResponse<String> sendGeminiRequest(String prompt, String model) {
         try {
             String apiKey = getApiKey();
-            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey;
-            logger.info("INFO: Sending request to Gemini API. Prompt length: {} characters", prompt.length());
+            String url = "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + apiKey;
+            logger.info("INFO: Sending request to Gemini API. Model: {}, Prompt length: {} characters", model, prompt.length());
 
             ObjectNode textNode = objectMapper.createObjectNode().put("text", prompt);
             ObjectNode partNode = objectMapper.createObjectNode();
@@ -250,28 +291,69 @@ public class AIService {
                     .POST(HttpRequest.BodyPublishers.ofString(payload))
                     .build();
 
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            logger.info("INFO: Gemini API Response status: {}", response.statusCode());
+            return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+        } catch (Exception e) {
+            logger.error("ERROR: Gemini API request exception for model " + model, e);
+            return null;
+        }
+    }
 
-            if (response.statusCode() == 200) {
-                JsonNode root = objectMapper.readTree(response.body());
-                JsonNode candidates = root.path("candidates");
-                if (candidates.isArray() && !candidates.isEmpty()) {
-                    JsonNode textResult = candidates.get(0)
-                            .path("content")
-                            .path("parts")
-                            .get(0)
-                            .path("text");
-                    return textResult.asText();
+    private String parseResponse(String responseBody) {
+        try {
+            JsonNode root = objectMapper.readTree(responseBody);
+            JsonNode candidates = root.path("candidates");
+            if (candidates.isArray() && !candidates.isEmpty()) {
+                JsonNode textResult = candidates.get(0)
+                        .path("content")
+                        .path("parts")
+                        .get(0)
+                        .path("text");
+                return textResult.asText();
+            }
+        } catch (Exception e) {
+            logger.error("ERROR: Failed to parse Gemini response: " + responseBody, e);
+        }
+        return "⚠️ Failed to parse Gemini response: " + responseBody;
+    }
+
+    private String callGemini(String prompt) {
+        String primaryModel = getModelName();
+        HttpResponse<String> response = sendGeminiRequest(prompt, primaryModel);
+        
+        if (response != null && response.statusCode() == 404) {
+            String warningMsg = "The configured Gemini model is unavailable. Retrying with a supported model...";
+            logger.warn("WARN: {}", warningMsg);
+            
+            // Loop through fallback models
+            for (String fallbackModel : FALLBACK_MODELS) {
+                if (fallbackModel.equals(primaryModel)) {
+                    continue; // Skip the one that just failed
+                }
+                
+                logger.info("INFO: Primary model failed ({}) fallback model used: {}", primaryModel, fallbackModel);
+                HttpResponse<String> fallbackResponse = sendGeminiRequest(prompt, fallbackModel);
+                if (fallbackResponse != null) {
+                    if (fallbackResponse.statusCode() == 200) {
+                        return parseResponse(fallbackResponse.body());
+                    } else {
+                        logger.error("ERROR: Fallback model {} failed with status: {}", fallbackModel, fallbackResponse.statusCode());
+                    }
                 }
             }
-            logger.error("ERROR: Gemini API error response (Status: {}): {}", response.statusCode(), response.body());
-            return "⚠️ Gemini API Error (Status: " + response.statusCode() + "): " + response.body();
-
-        } catch (Exception e) {
-            logger.error("ERROR: Gemini API request exception", e);
-            return "⚠️ Gemini API Request Exception: " + e.getMessage();
+            
+            return "⚠️ The configured Gemini model is unavailable. Retrying with a supported model... Fallback failed.";
         }
+        
+        if (response != null) {
+            if (response.statusCode() == 200) {
+                return parseResponse(response.body());
+            } else {
+                logger.error("ERROR: Gemini API error response (Status: {}): {}", response.statusCode(), response.body());
+                return "⚠️ Gemini API Error (Status: " + response.statusCode() + "): " + response.body();
+            }
+        }
+        
+        return "⚠️ Gemini API Request Exception: Empty response";
     }
 
     private String getMockRepositorySummary(ProjectSummary summary) {

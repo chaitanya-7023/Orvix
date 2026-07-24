@@ -17,6 +17,7 @@ public class ProjectController {
 
     private final FilesystemService filesystemService;
     private final StaticAnalysisService staticAnalysisService;
+    private final com.orvix.service.AIService aiService;
 
     @Value("${orvix.projects-root}")
     private String projectsRoot;
@@ -40,9 +41,10 @@ public class ProjectController {
         }
     }
 
-    public ProjectController(FilesystemService filesystemService, StaticAnalysisService staticAnalysisService) {
+    public ProjectController(FilesystemService filesystemService, StaticAnalysisService staticAnalysisService, com.orvix.service.AIService aiService) {
         this.filesystemService = filesystemService;
         this.staticAnalysisService = staticAnalysisService;
+        this.aiService = aiService;
     }
 
     @GetMapping
@@ -192,10 +194,11 @@ public class ProjectController {
         // 4 & 5. AIService details
         String resolvedKey = (envConfigured ? envKey : (springConfigured ? geminiApiKeyVal : ""));
         boolean hasKey = !resolvedKey.isBlank();
+        String modelName = aiService.getModelName();
         sb.append("AIService Resolution:\n");
         sb.append("  Using Env/Property variable = ").append(hasKey).append("\n");
-        sb.append("  Model name = gemini-2.5-flash\n");
-        sb.append("  API endpoint = https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent\n");
+        sb.append("  Model name = ").append(modelName).append("\n");
+        sb.append("  API endpoint = https://generativelanguage.googleapis.com/v1beta/models/").append(modelName).append(":generateContent\n");
         sb.append("  Initialization success = ").append(hasKey).append("\n\n");
         
         // 6 & 7. Test request
@@ -213,7 +216,7 @@ public class ProjectController {
         } else {
             sb.append("Attempting simple test request to Gemini API...\n");
             try {
-                String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + resolvedKey;
+                String url = "https://generativelanguage.googleapis.com/v1beta/models/" + modelName + ":generateContent?key=" + resolvedKey;
                 com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
                 com.fasterxml.jackson.databind.node.ObjectNode textNode = mapper.createObjectNode().put("text", "Hello");
                 com.fasterxml.jackson.databind.node.ObjectNode partNode = mapper.createObjectNode();
@@ -239,6 +242,14 @@ public class ProjectController {
                 java.io.StringWriter sw = new java.io.StringWriter();
                 e.printStackTrace(new java.io.PrintWriter(sw));
                 sb.append(sw.toString()).append("\n");
+            }
+
+            sb.append("\nAttempting test request via AIService.chatWithRepository()...\n");
+            try {
+                String chatResponse = aiService.chatWithRepository("Hello", "", "", "");
+                sb.append("  AIService Response: ").append(chatResponse.replaceAll("\\r?\\n", " ")).append("\n");
+            } catch (Exception e) {
+                sb.append("  AIService request failed with exception: ").append(e.getMessage()).append("\n");
             }
         }
         
