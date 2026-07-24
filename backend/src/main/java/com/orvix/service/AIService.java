@@ -16,8 +16,13 @@ import java.time.Duration;
 @Service
 public class AIService {
 
+    private static final org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(AIService.class);
+
     @Value("${GEMINI_API_KEY:}")
     private String apiKeyEnv;
+
+    @Value("${orvix.mock-mode.enabled:false}")
+    private boolean mockModeEnabled;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final HttpClient httpClient = HttpClient.newBuilder()
@@ -28,7 +33,6 @@ public class AIService {
         if (apiKeyEnv != null && !apiKeyEnv.isBlank()) {
             return apiKeyEnv;
         }
-        // Check system properties or standard env
         String envKey = System.getenv("GEMINI_API_KEY");
         if (envKey != null && !envKey.isBlank()) {
             return envKey;
@@ -38,8 +42,14 @@ public class AIService {
 
     public String generateRepositorySummary(ProjectSummary summary, File projectDir) {
         String apiKey = getApiKey();
+        logger.info("INFO: generateRepositorySummary - GEMINI_API_KEY is present: {}", !apiKey.isEmpty());
         if (apiKey.isEmpty()) {
-            return getMockRepositorySummary(summary);
+            if (mockModeEnabled) {
+                logger.info("INFO: Falling back to Mock Repository Summary (Mock Mode enabled).");
+                return getMockRepositorySummary(summary);
+            }
+            logger.error("ERROR: GEMINI_API_KEY is not configured.");
+            return "Error: GEMINI_API_KEY is not configured. Please set the GEMINI_API_KEY environment variable in your deployment environment.";
         }
 
         String prompt = String.format("""
@@ -64,10 +74,16 @@ public class AIService {
 
     public String chatWithRepository(String message, String currentFileContent, String fileContext, String chatHistory) {
         String apiKey = getApiKey();
+        logger.info("INFO: chatWithRepository - GEMINI_API_KEY is present: {}", !apiKey.isEmpty());
         if (apiKey.isEmpty()) {
-            return "🤖 **[MOCK MODE]** Set `GEMINI_API_KEY` to enable real Gemini responses.\n\n" +
-                   "I received your question: \"" + message + "\"\n\n" +
-                   "Current File Context length: " + (currentFileContent != null ? currentFileContent.length() : 0) + " chars.";
+            if (mockModeEnabled) {
+                logger.info("INFO: Falling back to Mock Chat response (Mock Mode enabled).");
+                return "🤖 **[MOCK MODE]** Set `GEMINI_API_KEY` to enable real Gemini responses.\n\n" +
+                       "I received your question: \"" + message + "\"\n\n" +
+                       "Current File Context length: " + (currentFileContent != null ? currentFileContent.length() : 0) + " chars.";
+            }
+            logger.error("ERROR: GEMINI_API_KEY is not configured.");
+            return "Error: GEMINI_API_KEY is not configured. Please set the GEMINI_API_KEY environment variable in your deployment environment.";
         }
 
         String systemPrompt = """
@@ -101,12 +117,18 @@ public class AIService {
 
     public String explainDiagnostics(String filePath, String errorCodeLine, String errorDetail) {
         String apiKey = getApiKey();
+        logger.info("INFO: explainDiagnostics - GEMINI_API_KEY is present: {}", !apiKey.isEmpty());
         if (apiKey.isEmpty()) {
-            return "🤖 **[MOCK MODE]** Set `GEMINI_API_KEY` to explain diagnostics.\n\n" +
-                   "**Error at:** `" + filePath + "`\n" +
-                   "**Code Line:** `" + errorCodeLine + "`\n" +
-                   "**Detail:** `" + errorDetail + "`\n\n" +
-                   "**Root Cause:** This is a mock explanation. Make sure your variables are initialized and types match.";
+            if (mockModeEnabled) {
+                logger.info("INFO: Falling back to Mock Diagnostics Explanation (Mock Mode enabled).");
+                return "🤖 **[MOCK MODE]** Set `GEMINI_API_KEY` to explain diagnostics.\n\n" +
+                       "**Error at:** `" + filePath + "`\n" +
+                       "**Code Line:** `" + errorCodeLine + "`\n" +
+                       "**Detail:** `" + errorDetail + "`\n\n" +
+                       "**Root Cause:** This is a mock explanation. Make sure your variables are initialized and types match.";
+            }
+            logger.error("ERROR: GEMINI_API_KEY is not configured.");
+            return "Error: GEMINI_API_KEY is not configured. Please set the GEMINI_API_KEY environment variable in your deployment environment.";
         }
 
         String prompt = String.format("""
@@ -123,8 +145,24 @@ public class AIService {
 
     public String generateFix(String filePath, String fileContent, String errorDetail, int errorLine) {
         String apiKey = getApiKey();
-        
-        // We will request a JSON response: {"explanation": "...", "originalCode": "...", "proposedCode": "..."}
+        logger.info("INFO: generateFix - GEMINI_API_KEY is present: {}", !apiKey.isEmpty());
+        if (apiKey.isEmpty()) {
+            if (mockModeEnabled) {
+                logger.info("INFO: Falling back to Mock Fix (Mock Mode enabled).");
+                try {
+                    ObjectNode mockJson = objectMapper.createObjectNode();
+                    mockJson.put("explanation", "Mock Fix: Checked for null validation on the error line.");
+                    mockJson.put("originalCode", "// Error line\n" + (fileContent.lines().skip(Math.max(0, errorLine - 2)).limit(3).reduce("", (a, b) -> a + "\n" + b)));
+                    mockJson.put("proposedCode", "// Fixed line with null validation\n// Code replaced successfully in mock mode");
+                    return objectMapper.writeValueAsString(mockJson);
+                } catch (Exception e) {
+                    return "{}";
+                }
+            }
+            logger.error("ERROR: GEMINI_API_KEY is not configured.");
+            return "{\"error\": \"GEMINI_API_KEY is not configured. Please set the GEMINI_API_KEY environment variable in your deployment environment.\"}";
+        }
+
         String prompt = String.format("""
                 You are the Orvix AI Fix Engine. An error occurred in the file %s:
                 Error details: %s
@@ -144,25 +182,31 @@ public class AIService {
                 }
                 """, filePath, errorDetail, errorLine, fileContent);
 
-        if (apiKey.isEmpty()) {
-            // Mock a fix structure
-            try {
-                ObjectNode mockJson = objectMapper.createObjectNode();
-                mockJson.put("explanation", "Mock Fix: Checked for null validation on the error line.");
-                mockJson.put("originalCode", "// Error line\n" + (fileContent.lines().skip(Math.max(0, errorLine - 2)).limit(3).reduce("", (a, b) -> a + "\n" + b)));
-                mockJson.put("proposedCode", "// Fixed line with null validation\n// Code replaced successfully in mock mode");
-                return objectMapper.writeValueAsString(mockJson);
-            } catch (Exception e) {
-                return "{}";
-            }
-        }
-
         return callGemini(prompt);
     }
 
     public String analyzeRuntimeException(java.util.List<String> logs, File projectDir) {
         String apiKey = getApiKey();
-        String logsText = String.join("\n", logs.subList(Math.max(0, logs.size() - 50), logs.size()));
+        logger.info("INFO: analyzeRuntimeException - GEMINI_API_KEY is present: {}", !apiKey.isEmpty());
+        if (apiKey.isEmpty()) {
+            if (mockModeEnabled) {
+                logger.info("INFO: Falling back to Mock Runtime Exception Analysis (Mock Mode enabled).");
+                try {
+                    ObjectNode mockJson = objectMapper.createObjectNode();
+                    mockJson.put("rootCause", "Mock Exception: NullPointerException encountered.");
+                    mockJson.put("affectedFile", "src/main/java/com/orvix/OrvixApplication.java");
+                    mockJson.put("line", 11);
+                    mockJson.put("impact", "Application crashed immediately during initialization.");
+                    mockJson.put("fixRecommendation", "Check if environment configurations or dependency beans are correctly mapped.");
+                    mockJson.put("confidenceScore", 95);
+                    return objectMapper.writeValueAsString(mockJson);
+                } catch (Exception e) {
+                    return "{}";
+                }
+            }
+            logger.error("ERROR: GEMINI_API_KEY is not configured.");
+            return "{\"error\": \"GEMINI_API_KEY is not configured. Please set the GEMINI_API_KEY environment variable in your deployment environment.\"}";
+        }
 
         String prompt = String.format("""
                 You are Orvix's Runtime Exception Analyzer. A Java application failed during execution.
@@ -181,22 +225,7 @@ public class AIService {
                   "fixRecommendation": "Direct recommendation of how to fix this exception",
                   "confidenceScore": 95 // confidence percentage (integer)
                 }
-                """, logsText);
-
-        if (apiKey.isEmpty()) {
-            try {
-                ObjectNode mockJson = objectMapper.createObjectNode();
-                mockJson.put("rootCause", "Mock Exception: NullPointerException encountered.");
-                mockJson.put("affectedFile", "src/main/java/com/orvix/OrvixApplication.java");
-                mockJson.put("line", 11);
-                mockJson.put("impact", "Application crashed immediately during initialization.");
-                mockJson.put("fixRecommendation", "Check if environment configurations or dependency beans are correctly mapped.");
-                mockJson.put("confidenceScore", 95);
-                return objectMapper.writeValueAsString(mockJson);
-            } catch (Exception e) {
-                return "{}";
-            }
-        }
+                """, String.join("\n", logs.subList(Math.max(0, logs.size() - 50), logs.size())));
 
         return callGemini(prompt);
     }
@@ -205,8 +234,8 @@ public class AIService {
         try {
             String apiKey = getApiKey();
             String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey;
+            logger.info("INFO: Sending request to Gemini API. Prompt length: {} characters", prompt.length());
 
-            // Build payload
             ObjectNode textNode = objectMapper.createObjectNode().put("text", prompt);
             ObjectNode partNode = objectMapper.createObjectNode();
             partNode.set("parts", objectMapper.createArrayNode().add(textNode));
@@ -222,6 +251,7 @@ public class AIService {
                     .build();
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            logger.info("INFO: Gemini API Response status: {}", response.statusCode());
 
             if (response.statusCode() == 200) {
                 JsonNode root = objectMapper.readTree(response.body());
@@ -235,9 +265,11 @@ public class AIService {
                     return textResult.asText();
                 }
             }
+            logger.error("ERROR: Gemini API error response (Status: {}): {}", response.statusCode(), response.body());
             return "⚠️ Gemini API Error (Status: " + response.statusCode() + "): " + response.body();
 
         } catch (Exception e) {
+            logger.error("ERROR: Gemini API request exception", e);
             return "⚠️ Gemini API Request Exception: " + e.getMessage();
         }
     }

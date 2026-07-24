@@ -7,4 +7,6 @@ logging:
     com.orvix: DEBUG
 
 orvix:
-  projects-root: C:/Users/venka/.gemini/antigravity/scratch/orvix/projects
+  projects-root: ${ORVIX_PROJECTS_ROOT:C:/Users/venka/.gemini/antigravity/scratch/orvix/projects}
+  mock-mode:
+    enabled: ${ORVIX_MOCK_MODE_ENABLED:false}
