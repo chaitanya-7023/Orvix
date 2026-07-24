@@ -19,6 +19,7 @@ RUN mvn clean package -DskipTests
 
 # Stage 3: Package the Runnable Container
 FROM eclipse-temurin:21-jdk-alpine
+RUN apk add --no-cache maven
 WORKDIR /app
 COPY --from=backend-builder /app/backend/target/backend-0.0.1-SNAPSHOT.jar app.jar
 

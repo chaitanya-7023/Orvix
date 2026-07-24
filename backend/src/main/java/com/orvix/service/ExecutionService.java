@@ -59,100 +59,239 @@ public class ExecutionService {
                     return;
                 }
 
-                sendEvent(emitter, "system", "Detected build tool: " + summary.buildTool());
-                sendEvent(emitter, "system", "Framework: " + summary.framework());
-                sendEvent(emitter, "system", "Entry Point: " + summary.entryPoint());
-
+                boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win");
                 boolean compileSuccess = false;
                 List<String> runCommand = new ArrayList<>();
-                boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win");
+                File runDir = projectDir;
                 File buildDir = projectDir;
 
-                File mvnw = new File(projectDir, "mvnw.cmd");
-                File mvnwNonCmd = new File(projectDir, "mvnw");
+                // 1. Detect Maven projects
+                List<Path> pomPaths = new ArrayList<>();
+                try (Stream<Path> walk = Files.walk(projectDir.toPath())) {
+                    pomPaths = walk.filter(Files::isRegularFile)
+                            .filter(p -> p.getFileName().toString().equals("pom.xml"))
+                            .collect(Collectors.toList());
+                } catch (IOException e) {
+                    // ignore
+                }
 
-                if (!mvnw.exists() && !mvnwNonCmd.exists()) {
-                    File[] children = projectDir.listFiles();
-                    if (children != null) {
-                        for (File child : children) {
-                            if (child.isDirectory()) {
-                                if (new File(child, "mvnw.cmd").exists()) {
-                                    mvnw = new File(child, "mvnw.cmd");
-                                    buildDir = child;
-                                    break;
-                                } else if (new File(child, "mvnw").exists()) {
-                                    mvnw = new File(child, "mvnw");
-                                    buildDir = child;
-                                    break;
+                // 2. Detect Gradle projects
+                List<Path> gradlePaths = new ArrayList<>();
+                try (Stream<Path> walk = Files.walk(projectDir.toPath())) {
+                    gradlePaths = walk.filter(Files::isRegularFile)
+                            .filter(p -> p.getFileName().toString().equals("build.gradle") || p.getFileName().toString().equals("build.gradle.kts"))
+                            .collect(Collectors.toList());
+                } catch (IOException e) {
+                    // ignore
+                }
+
+                if (!pomPaths.isEmpty()) {
+                    // Maven Project Execution Flow
+                    String buildTool = "Maven";
+                    String framework = summary.framework();
+                    File rootPom = new File(projectDir, "pom.xml");
+                    String rootPomLocation = rootPom.exists() ? rootPom.getAbsolutePath() : "None (Multi-module subfolders)";
+                    
+                    List<String> modules = new ArrayList<>();
+                    for (Path p : pomPaths) {
+                        File parentFile = p.getParent().toFile();
+                        if (!parentFile.equals(projectDir)) {
+                            modules.add(parentFile.getName());
+                        }
+                    }
+                    String moduleList = modules.isEmpty() ? "[]" : modules.toString();
+
+                    // Find Maven Wrapper (mvnw / mvnw.cmd) recursively
+                    File mvnwExec = null;
+                    try (Stream<Path> walk = Files.walk(projectDir.toPath())) {
+                        Path found = walk.filter(p -> p.getFileName().toString().equals(isWindows ? "mvnw.cmd" : "mvnw"))
+                                .findFirst()
+                                .orElse(null);
+                        if (found != null) {
+                            mvnwExec = found.toFile();
+                        }
+                    } catch (Exception e) {
+                        // ignore
+                    }
+
+                    String mvnCommand;
+                    boolean mvnAvailable = false;
+                    if (mvnwExec != null) {
+                        mvnCommand = mvnwExec.getAbsolutePath();
+                        mvnAvailable = true;
+                        buildDir = mvnwExec.getParentFile();
+                    } else {
+                        mvnCommand = isWindows ? "mvn.cmd" : "mvn";
+                        try {
+                            Process checkProc = new ProcessBuilder(mvnCommand, "-version").start();
+                            checkProc.waitFor();
+                            mvnAvailable = true;
+                        } catch (Exception e) {
+                            if (isWindows) {
+                                File localMvn = new File("C:\\Users\\venka\\.gemini\\antigravity\\scratch\\devflow\\backend\\maven\\apache-maven-3.9.6\\bin\\mvn.cmd");
+                                if (localMvn.exists()) {
+                                    mvnCommand = localMvn.getAbsolutePath();
+                                    mvnAvailable = true;
                                 }
                             }
                         }
                     }
-                } else {
-                    mvnw = mvnw.exists() ? mvnw : mvnwNonCmd;
-                }
 
-                File gradlew = new File(projectDir, "gradlew.bat");
-                File gradlewNonBat = new File(projectDir, "gradlew");
+                    if (!mvnAvailable) {
+                        sendEvent(emitter, "system", "Error: Maven build tool detected but Maven is not installed or available in the system path. Cannot compile.");
+                        emitter.complete();
+                        return;
+                    }
 
-                if (!gradlew.exists() && !gradlewNonBat.exists() && buildDir.equals(projectDir)) {
-                    File[] children = projectDir.listFiles();
-                    if (children != null) {
-                        for (File child : children) {
-                            if (child.isDirectory()) {
-                                if (new File(child, "gradlew.bat").exists()) {
-                                    gradlew = new File(child, "gradlew.bat");
-                                    buildDir = child;
-                                    break;
-                                } else if (new File(child, "gradlew").exists()) {
-                                    gradlew = new File(child, "gradlew");
-                                    buildDir = child;
-                                    break;
-                                }
+                    String buildCommandUsed = mvnCommand + " clean package -U -DskipTests";
+                    
+                    sendEvent(emitter, "system", "Build Tool: " + buildTool);
+                    sendEvent(emitter, "system", "Framework: " + framework);
+                    sendEvent(emitter, "system", "Root pom.xml location: " + rootPomLocation);
+                    sendEvent(emitter, "system", "Module list: " + moduleList);
+                    sendEvent(emitter, "system", "Build command used: " + buildCommandUsed);
+
+                    // Compile modules
+                    if (rootPom.exists()) {
+                        sendEvent(emitter, "system", "Compiling Maven project...");
+                        List<String> compileCmd = List.of(mvnCommand, "clean", "package", "-U", "-DskipTests");
+                        compileSuccess = runBuildProcess(projectDir, compileCmd, emitter);
+                    } else {
+                        compileSuccess = true;
+                        for (Path p : pomPaths) {
+                            File modDir = p.getParent().toFile();
+                            sendEvent(emitter, "system", "Compiling module " + modDir.getName() + "...");
+                            List<String> compileCmd = List.of(mvnCommand, "clean", "package", "-U", "-DskipTests");
+                            boolean success = runBuildProcess(modDir, compileCmd, emitter);
+                            if (!success) {
+                                compileSuccess = false;
+                                break;
                             }
                         }
                     }
-                } else if (!buildDir.equals(projectDir)) {
-                    // Maven was already located in subfolder
-                } else {
-                    gradlew = gradlew.exists() ? gradlew : gradlewNonBat;
-                }
 
-                if (mvnw.exists()) {
-                    sendEvent(emitter, "system", "Compiling using Maven Wrapper...");
-                    List<String> compileCmd = new ArrayList<>();
-                    List<String> runCmd = new ArrayList<>();
-                    if (isWindows) {
-                        String execName = mvnw.getName().endsWith(".cmd") ? mvnw.getName() : "mvnw.cmd";
-                        compileCmd.addAll(List.of("cmd.exe", "/c", execName, "compile"));
-                        runCmd.addAll(List.of("cmd.exe", "/c", execName, "spring-boot:run"));
-                    } else {
-                        compileCmd.addAll(List.of("/bin/sh", "-c", "./" + mvnw.getName() + " compile"));
-                        runCmd.addAll(List.of("/bin/sh", "-c", "./" + mvnw.getName() + " spring-boot:run"));
-                    }
-                    compileSuccess = runBuildProcess(buildDir, compileCmd, emitter);
                     if (compileSuccess) {
-                        runCommand.addAll(runCmd);
+                        // Resolve Entry Point module
+                        String entryClass = summary.entryPoint();
+                        if (entryClass != null && !entryClass.equals("Not Found")) {
+                            if (entryClass.contains(" ")) {
+                                entryClass = entryClass.substring(0, entryClass.indexOf(" "));
+                            }
+                            String classRelativePath = entryClass.replace('.', '/') + ".java";
+                            try (Stream<Path> walk = Files.walk(projectDir.toPath())) {
+                                Path classPath = walk.filter(p -> p.toString().replace('\\', '/').endsWith(classRelativePath))
+                                        .findFirst()
+                                        .orElse(null);
+                                if (classPath != null) {
+                                    Path parent = classPath.getParent();
+                                    while (parent != null && !parent.equals(projectDir.toPath())) {
+                                        if (Files.exists(parent.resolve("pom.xml"))) {
+                                            runDir = parent.toFile();
+                                            break;
+                                        }
+                                        parent = parent.getParent();
+                                    }
+                                }
+                            } catch (Exception e) {
+                                // ignore
+                            }
+
+                            if (framework.equals("Spring Boot Application")) {
+                                if (isWindows) {
+                                    runCommand.addAll(List.of("cmd.exe", "/c", mvnCommand, "spring-boot:run"));
+                                } else {
+                                    runCommand.addAll(List.of(mvnCommand, "spring-boot:run"));
+                                }
+                            } else {
+                                if (isWindows) {
+                                    runCommand.addAll(List.of("cmd.exe", "/c", mvnCommand, "exec:java", "-Dexec.mainClass=" + entryClass));
+                                } else {
+                                    runCommand.addAll(List.of(mvnCommand, "exec:java", "-Dexec.mainClass=" + entryClass));
+                                }
+                            }
+                        } else {
+                            sendEvent(emitter, "system", "Error: Entry Point not found. Cannot determine run command.");
+                            compileSuccess = false;
+                        }
                     }
-                } else if (gradlew.exists()) {
-                    sendEvent(emitter, "system", "Compiling using Gradle Wrapper...");
-                    List<String> compileCmd = new ArrayList<>();
-                    List<String> runCmd = new ArrayList<>();
-                    if (isWindows) {
-                        String execName = gradlew.getName().endsWith(".bat") ? gradlew.getName() : "gradlew.bat";
-                        compileCmd.addAll(List.of("cmd.exe", "/c", execName, "classes"));
-                        runCmd.addAll(List.of("cmd.exe", "/c", execName, "bootRun"));
+
+                } else if (!gradlePaths.isEmpty()) {
+                    // Gradle Project Execution Flow
+                    String buildTool = "Gradle";
+                    String framework = summary.framework();
+                    
+                    File gradlewExec = null;
+                    try (Stream<Path> walk = Files.walk(projectDir.toPath())) {
+                        Path found = walk.filter(p -> p.getFileName().toString().equals(isWindows ? "gradlew.bat" : "gradlew"))
+                                .findFirst()
+                                .orElse(null);
+                        if (found != null) {
+                            gradlewExec = found.toFile();
+                        }
+                    } catch (Exception e) {
+                        // ignore
+                    }
+
+                    String gradleCommand;
+                    boolean gradleAvailable = false;
+                    if (gradlewExec != null) {
+                        gradleCommand = gradlewExec.getAbsolutePath();
+                        gradleAvailable = true;
+                        buildDir = gradlewExec.getParentFile();
                     } else {
-                        compileCmd.addAll(List.of("/bin/sh", "-c", "./" + gradlew.getName() + " classes"));
-                        runCmd.addAll(List.of("/bin/sh", "-c", "./" + gradlew.getName() + " bootRun"));
+                        gradleCommand = isWindows ? "gradle.bat" : "gradle";
+                        try {
+                            Process checkProc = new ProcessBuilder(gradleCommand, "-v").start();
+                            checkProc.waitFor();
+                            gradleAvailable = true;
+                        } catch (Exception e) {
+                            // ignore
+                        }
                     }
+
+                    if (!gradleAvailable) {
+                        sendEvent(emitter, "system", "Error: Gradle build tool detected but Gradle is not installed or available in the system path. Cannot compile.");
+                        emitter.complete();
+                        return;
+                    }
+
+                    String buildCommandUsed = gradleCommand + " clean classes";
+                    sendEvent(emitter, "system", "Build Tool: " + buildTool);
+                    sendEvent(emitter, "system", "Framework: " + framework);
+                    sendEvent(emitter, "system", "Build command used: " + buildCommandUsed);
+
+                    sendEvent(emitter, "system", "Compiling Gradle project...");
+                    List<String> compileCmd = List.of(gradleCommand, "clean", "classes");
                     compileSuccess = runBuildProcess(buildDir, compileCmd, emitter);
+
                     if (compileSuccess) {
-                        runCommand.addAll(runCmd);
+                        String entryClass = summary.entryPoint();
+                        if (entryClass != null && !entryClass.equals("Not Found")) {
+                            if (entryClass.contains(" ")) {
+                                entryClass = entryClass.substring(0, entryClass.indexOf(" "));
+                            }
+                            if (framework.equals("Spring Boot Application")) {
+                                if (isWindows) {
+                                    runCommand.addAll(List.of("cmd.exe", "/c", gradleCommand, "bootRun"));
+                                } else {
+                                    runCommand.addAll(List.of(gradleCommand, "bootRun"));
+                                }
+                            } else {
+                                if (isWindows) {
+                                    runCommand.addAll(List.of("cmd.exe", "/c", gradleCommand, "run"));
+                                } else {
+                                    runCommand.addAll(List.of(gradleCommand, "run"));
+                                }
+                            }
+                        } else {
+                            sendEvent(emitter, "system", "Error: Entry Point not found. Cannot determine run command.");
+                            compileSuccess = false;
+                        }
                     }
+
                 } else {
-                    // Fallback compile: Java Compiler API or manual javac
-                    sendEvent(emitter, "system", "No wrapper found. Using standard JDK javac compilation...");
+                    // Plain Java Fallback Flow
+                    sendEvent(emitter, "system", "No wrapper or build files found. Using standard JDK javac compilation...");
                     File classesDir = new File(projectDir, "target/classes");
                     if (!classesDir.exists()) {
                         classesDir.mkdirs();
@@ -179,28 +318,19 @@ public class ExecutionService {
                     File sourcesFile = new File(targetDir, "sources.txt");
                     Files.write(sourcesFile.toPath(), javaFiles);
 
-                    List<String> javacCmd = new ArrayList<>();
-                    javacCmd.add("javac");
-                    javacCmd.add("-d");
-                    javacCmd.add("target/classes");
-                    javacCmd.add("@" + sourcesFile.getAbsolutePath());
-
+                    List<String> javacCmd = List.of("javac", "-d", "target/classes", "@" + sourcesFile.getAbsolutePath());
                     compileSuccess = runBuildProcess(projectDir, javacCmd, emitter);
                     
                     if (compileSuccess) {
-                        // Extract class name from entry point
                         String entryClass = summary.entryPoint();
-                        if (entryClass.contains(" ")) {
-                            entryClass = entryClass.substring(0, entryClass.indexOf(" "));
-                        }
-                        if (entryClass.equals("Not Found")) {
+                        if (entryClass != null && !entryClass.equals("Not Found")) {
+                            if (entryClass.contains(" ")) {
+                                entryClass = entryClass.substring(0, entryClass.indexOf(" "));
+                            }
+                            runCommand.addAll(List.of("java", "-cp", "target/classes", entryClass));
+                        } else {
                             sendEvent(emitter, "system", "Error: Main entry point class not found.");
                             compileSuccess = false;
-                        } else {
-                            runCommand.add("java");
-                            runCommand.add("-cp");
-                            runCommand.add("target/classes");
-                            runCommand.add(entryClass);
                         }
                     }
                 }
@@ -213,7 +343,7 @@ public class ExecutionService {
 
                 sendEvent(emitter, "system", "Compilation successful! Starting application process...");
                 ProcessBuilder pb = new ProcessBuilder(runCommand);
-                pb.directory(buildDir);
+                pb.directory(runDir);
                 pb.redirectErrorStream(true); // combine stdout and stderr
 
                 Process process = pb.start();
