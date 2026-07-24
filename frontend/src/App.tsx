@@ -48,6 +48,7 @@ export default function App() {
   // Execution & Logs
   const [logs, setLogs] = useState<string[]>([]);
   const [isRunning, setIsRunning] = useState(false);
+  const [activePort, setActivePort] = useState<number | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
   // Settings & Customizations (Feature 4)
@@ -365,6 +366,7 @@ export default function App() {
   const handleRunProject = () => {
     if (!projectName) return;
     setIsRunning(true);
+    setActivePort(null);
     setLogs([]);
     setRuntimeCrash(null);
 
@@ -380,6 +382,10 @@ export default function App() {
       setLogs((prev) => [...prev, `System: ${event.data}`]);
     });
 
+    source.addEventListener("started", (event: any) => {
+      setActivePort(parseInt(event.data));
+    });
+
     source.addEventListener("runtime-error-analysis", (event: any) => {
       try {
         const data = JSON.parse(event.data);
@@ -392,11 +398,13 @@ export default function App() {
     source.onerror = () => {
       source.close();
       setIsRunning(false);
+      setActivePort(null);
     };
 
     source.addEventListener("complete", () => {
       source.close();
       setIsRunning(false);
+      setActivePort(null);
     });
   };
 
@@ -405,6 +413,7 @@ export default function App() {
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
     }
+    setActivePort(null);
     try {
       await fetch(`${API_BASE}/api/projects/${projectName}/stop`, { method: "POST" });
       setLogs((prev) => [...prev, "System: Application stopped by user."]);
@@ -412,6 +421,21 @@ export default function App() {
       // ignore
     }
     setIsRunning(false);
+  };
+
+  const handleHealthCheck = async () => {
+    if (!activePort || !projectName) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/projects/${projectName}/health`);
+      if (res.ok) {
+        const data = await res.json();
+        alert(`Health Check Result:\nStatus: ${data.status}\nHTTP Status Code: ${data.statusCode || "N/A"}\n${data.message || data.error || ""}`);
+      } else {
+        alert("Health Check failed: Unable to connect to health endpoint.");
+      }
+    } catch (e) {
+      alert("Health Check failed: Connection error.");
+    }
   };
 
   const getActiveFileContent = () => {
@@ -599,23 +623,44 @@ export default function App() {
 
           <div className="h-4 w-[1px] bg-border mx-1" />
 
-          {isRunning ? (
-            <button
-              onClick={handleStopProject}
-              className="flex items-center space-x-1 bg-destructive text-destructive-foreground hover:bg-destructive/90 px-3 py-1.5 text-xs font-semibold rounded shadow-sm transition"
-            >
-              <Square size={13} />
-              <span>Stop</span>
-            </button>
-          ) : (
-            <button
-              onClick={handleRunProject}
-              className="flex items-center space-x-1 bg-primary text-primary-foreground hover:bg-primary/95 px-3 py-1.5 text-xs font-semibold rounded shadow-sm transition"
-            >
-              <Play size={13} />
-              <span>Run</span>
-            </button>
-          )}
+           {isRunning ? (
+             <div className="flex items-center space-x-2">
+               <button
+                 onClick={handleStopProject}
+                 className="flex items-center space-x-1 bg-destructive text-destructive-foreground hover:bg-destructive/90 px-3 py-1.5 text-xs font-semibold rounded shadow-sm transition"
+               >
+                 <Square size={13} />
+                 <span>Stop</span>
+               </button>
+               {activePort && (
+                 <>
+                   <button
+                     onClick={() => window.open(`http://localhost:${activePort}`, "_blank")}
+                     className="flex items-center space-x-1 bg-teal-600 text-white hover:bg-teal-700 px-3 py-1.5 text-xs font-semibold rounded shadow-sm transition"
+                     title="Open Application in new tab"
+                   >
+                     <ExternalLink size={13} />
+                     <span>Open Application</span>
+                   </button>
+                   <button
+                     onClick={handleHealthCheck}
+                     className="flex items-center space-x-1 bg-indigo-600 text-white hover:bg-indigo-700 px-3 py-1.5 text-xs font-semibold rounded shadow-sm transition"
+                     title="Run health check ping"
+                   >
+                     <span>Health Check</span>
+                   </button>
+                 </>
+               )}
+             </div>
+           ) : (
+             <button
+               onClick={handleRunProject}
+               className="flex items-center space-x-1 bg-primary text-primary-foreground hover:bg-primary/95 px-3 py-1.5 text-xs font-semibold rounded shadow-sm transition"
+             >
+               <Play size={13} />
+               <span>Run</span>
+             </button>
+           )}
 
           <button
             onClick={() => setIsDarkTheme(!isDarkTheme)}
@@ -667,8 +712,8 @@ export default function App() {
               editorRef={editorRef}
             />
           </div>
-          <div className="h-44 flex-shrink-0">
-            <ConsolePanel logs={logs} onClearLogs={() => setLogs([])} />
+          <div className="h-60 flex-shrink-0">
+            <ConsolePanel logs={logs} onClearLogs={() => setLogs([])} activePort={activePort} />
           </div>
         </div>
 

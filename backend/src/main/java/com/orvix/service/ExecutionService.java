@@ -23,11 +23,39 @@ public class ExecutionService {
     private final StaticAnalysisService staticAnalysisService;
     private final AIService aiService;
     private final Map<String, Process> activeProcesses = new ConcurrentHashMap<>();
+    private final Map<String, Integer> activePorts = new ConcurrentHashMap<>();
 
     public ExecutionService(FilesystemService filesystemService, StaticAnalysisService staticAnalysisService, AIService aiService) {
         this.filesystemService = filesystemService;
         this.staticAnalysisService = staticAnalysisService;
         this.aiService = aiService;
+    }
+
+    public Integer getActivePort(String projectName) {
+        return activePorts.get(projectName);
+    }
+
+    private boolean isPortOccupied(int port) {
+        try (java.net.ServerSocket socket = new java.net.ServerSocket(port)) {
+            return false;
+        } catch (IOException e) {
+            return true;
+        }
+    }
+
+    private int findFreePort() {
+        for (int port = 8081; port <= 9000; port++) {
+            try (java.net.ServerSocket socket = new java.net.ServerSocket(port)) {
+                return port;
+            } catch (IOException e) {
+                // port occupied, try next
+            }
+        }
+        try (java.net.ServerSocket socket = new java.net.ServerSocket(0)) {
+            return socket.getLocalPort();
+        } catch (IOException e) {
+            return 8081; // absolute fallback
+        }
     }
 
     public void runProject(String projectName, SseEmitter emitter) {
@@ -43,6 +71,10 @@ public class ExecutionService {
 
         CompletableFuture.runAsync(() -> {
             try {
+                int targetPort = 8080;
+                if (isPortOccupied(8080)) {
+                    targetPort = findFreePort();
+                }
                 ProjectSummary summary = staticAnalysisService.analyze(projectDir);
 
                 List<String> javaFilesExist;
@@ -198,9 +230,9 @@ public class ExecutionService {
 
                             if (framework.equals("Spring Boot Application")) {
                                 if (isWindows) {
-                                    runCommand.addAll(List.of("cmd.exe", "/c", mvnCommand, "spring-boot:run"));
+                                    runCommand.addAll(List.of("cmd.exe", "/c", mvnCommand, "spring-boot:run", "-Dspring-boot.run.arguments=--server.port=" + targetPort));
                                 } else {
-                                    runCommand.addAll(List.of(mvnCommand, "spring-boot:run"));
+                                    runCommand.addAll(List.of(mvnCommand, "spring-boot:run", "-Dspring-boot.run.arguments=--server.port=" + targetPort));
                                 }
                             } else {
                                 if (isWindows) {
@@ -272,9 +304,9 @@ public class ExecutionService {
                             }
                             if (framework.equals("Spring Boot Application")) {
                                 if (isWindows) {
-                                    runCommand.addAll(List.of("cmd.exe", "/c", gradleCommand, "bootRun"));
+                                    runCommand.addAll(List.of("cmd.exe", "/c", gradleCommand, "bootRun", "--args=--server.port=" + targetPort));
                                 } else {
-                                    runCommand.addAll(List.of(gradleCommand, "bootRun"));
+                                    runCommand.addAll(List.of(gradleCommand, "bootRun", "--args=--server.port=" + targetPort));
                                 }
                             } else {
                                 if (isWindows) {
@@ -327,7 +359,7 @@ public class ExecutionService {
                             if (entryClass.contains(" ")) {
                                 entryClass = entryClass.substring(0, entryClass.indexOf(" "));
                             }
-                            runCommand.addAll(List.of("java", "-cp", "target/classes", entryClass));
+                            runCommand.addAll(List.of("java", "-Dserver.port=" + targetPort, "-cp", "target/classes", entryClass, "--server.port=" + targetPort));
                         } else {
                             sendEvent(emitter, "system", "Error: Main entry point class not found.");
                             compileSuccess = false;
@@ -345,12 +377,16 @@ public class ExecutionService {
                 ProcessBuilder pb = new ProcessBuilder(runCommand);
                 pb.directory(runDir);
                 pb.redirectErrorStream(true); // combine stdout and stderr
+                pb.environment().put("PORT", String.valueOf(targetPort));
+                pb.environment().put("SERVER_PORT", String.valueOf(targetPort));
 
                 Process process = pb.start();
                 activeProcesses.put(projectName, process);
+                activePorts.put(projectName, targetPort);
 
                 // Stream the output
                 boolean hasException = false;
+                boolean hasStarted = false;
                 List<String> runLogs = new ArrayList<>();
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                     String line;
@@ -360,11 +396,19 @@ public class ExecutionService {
                         if (line.contains("Exception") || line.contains("Error") || line.contains("\tat ") || line.contains("Failed to")) {
                             hasException = true;
                         }
+                        if (!hasStarted && (line.contains("Tomcat started on port") || line.contains("Started Application") || line.contains("Tomcat initialized with port") || line.contains("Tomcat started on port(s)"))) {
+                            hasStarted = true;
+                            sendEvent(emitter, "started", String.valueOf(targetPort));
+                            sendEvent(emitter, "console", "✔ Application Started");
+                            sendEvent(emitter, "console", "Running Port: " + targetPort);
+                            sendEvent(emitter, "console", "URL: http://localhost:" + targetPort);
+                        }
                     }
                 }
 
                 int exitCode = process.waitFor();
                 activeProcesses.remove(projectName);
+                activePorts.remove(projectName);
                 sendEvent(emitter, "system", "Process exited with code: " + exitCode);
 
                 if (exitCode != 0 || hasException) {
@@ -383,6 +427,7 @@ public class ExecutionService {
 
     public void stopProject(String projectName) {
         Process p = activeProcesses.remove(projectName);
+        activePorts.remove(projectName);
         if (p != null && p.isAlive()) {
             p.destroy();
             try {

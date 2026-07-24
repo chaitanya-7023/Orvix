@@ -36,3 +36,4 @@
 # DevFlow project storage
 **/backend/projects/
 **/backend/classpath.txt
+**/backend/src/main/resources/static/
