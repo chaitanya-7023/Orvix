@@ -149,6 +149,7 @@ public class ImportService {
                     .setURI(repoUrl)
                     .setDirectory(targetDir)
                     .setCloneAllBranches(false)
+                    .setDepth(1)
                     .setTimeout(60) // 60 seconds network timeout
                     .setProgressMonitor(monitor)
                     .call()) {
