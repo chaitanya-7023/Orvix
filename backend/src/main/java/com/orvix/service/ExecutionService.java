@@ -172,11 +172,18 @@ public class ExecutionService {
                         return;
                     }
 
+                    File targetDir = new File(projectDir, "target");
+                    if (!targetDir.exists()) {
+                        targetDir.mkdirs();
+                    }
+                    File sourcesFile = new File(targetDir, "sources.txt");
+                    Files.write(sourcesFile.toPath(), javaFiles);
+
                     List<String> javacCmd = new ArrayList<>();
                     javacCmd.add("javac");
                     javacCmd.add("-d");
                     javacCmd.add("target/classes");
-                    javacCmd.addAll(javaFiles);
+                    javacCmd.add("@" + sourcesFile.getAbsolutePath());
 
                     compileSuccess = runBuildProcess(projectDir, javacCmd, emitter);
                     
