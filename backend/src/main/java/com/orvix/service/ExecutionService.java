@@ -260,10 +260,72 @@ public class ExecutionService {
     }
 
     private boolean runBuildProcess(File projectDir, List<String> command, SseEmitter emitter) throws IOException, InterruptedException {
+        sendEvent(emitter, "system", "=== PROCESS EXECUTION DIAGNOSTICS ===");
+        sendEvent(emitter, "system", "Working Directory (projectDir): " + projectDir.getAbsolutePath());
+        sendEvent(emitter, "system", "  Exists: " + projectDir.exists());
+        sendEvent(emitter, "system", "  Is Directory: " + projectDir.isDirectory());
+        
         ProcessBuilder pb = new ProcessBuilder(command);
         pb.directory(projectDir);
         pb.redirectErrorStream(true);
-        Process process = pb.start();
+        
+        sendEvent(emitter, "system", "ProcessBuilder.directory(): " + (pb.directory() != null ? pb.directory().getAbsolutePath() : "null"));
+        sendEvent(emitter, "system", "Command list: " + pb.command().toString());
+        
+        String javaHome = System.getenv("JAVA_HOME");
+        String path = System.getenv("PATH");
+        String currentOs = System.getProperty("os.name");
+        String currentUser = System.getProperty("user.name");
+        
+        sendEvent(emitter, "system", "Environment Variables:");
+        sendEvent(emitter, "system", "  JAVA_HOME: " + javaHome);
+        sendEvent(emitter, "system", "  PATH: " + path);
+        sendEvent(emitter, "system", "  Current OS: " + currentOs);
+        sendEvent(emitter, "system", "  Current User: " + currentUser);
+        
+        sendEvent(emitter, "system", "Verifying javac and java versions...");
+        try {
+            Process whichJavac = new ProcessBuilder(currentOs.toLowerCase().contains("win") ? List.of("cmd.exe", "/c", "where javac") : List.of("which", "javac")).start();
+            try (BufferedReader r = new BufferedReader(new InputStreamReader(whichJavac.getInputStream()))) {
+                String line = r.readLine();
+                sendEvent(emitter, "system", "  which javac: " + (line != null ? line : "Not found"));
+            }
+        } catch (Exception ex) {
+            sendEvent(emitter, "system", "  which javac check failed: " + ex.getMessage());
+        }
+        
+        try {
+            Process javaVer = new ProcessBuilder("java", "-version").redirectErrorStream(true).start();
+            try (BufferedReader r = new BufferedReader(new InputStreamReader(javaVer.getInputStream()))) {
+                String line = r.readLine();
+                sendEvent(emitter, "system", "  java -version: " + (line != null ? line : "Unknown"));
+            }
+        } catch (Exception ex) {
+            sendEvent(emitter, "system", "  java -version check failed: " + ex.getMessage());
+        }
+
+        try {
+            Process javacVer = new ProcessBuilder("javac", "-version").redirectErrorStream(true).start();
+            try (BufferedReader r = new BufferedReader(new InputStreamReader(javacVer.getInputStream()))) {
+                String line = r.readLine();
+                sendEvent(emitter, "system", "  javac -version: " + (line != null ? line : "Unknown"));
+            }
+        } catch (Exception ex) {
+            sendEvent(emitter, "system", "  javac -version check failed: " + ex.getMessage());
+        }
+        
+        sendEvent(emitter, "system", "=======================================");
+        
+        Process process;
+        try {
+            process = pb.start();
+        } catch (IOException e) {
+            sendEvent(emitter, "system", "Exec failed, error message: " + e.getMessage());
+            java.io.StringWriter sw = new java.io.StringWriter();
+            e.printStackTrace(new java.io.PrintWriter(sw));
+            sendEvent(emitter, "system", "Exception stack trace:\n" + sw.toString());
+            throw e;
+        }
 
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
             String line;
