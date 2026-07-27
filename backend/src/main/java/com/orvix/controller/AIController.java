@@ -1,17 +1,41 @@
 package com.orvix.controller;
 
 import com.orvix.service.AIService;
+import com.orvix.service.FilesystemService;
+import com.orvix.service.StaticAnalysisService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.io.File;
 
 @RestController
 @RequestMapping("/api/projects")
 public class AIController {
 
     private final AIService aiService;
+    private final FilesystemService filesystemService;
+    private final StaticAnalysisService staticAnalysisService;
 
-    public AIController(AIService aiService) {
+    public AIController(AIService aiService, FilesystemService filesystemService, StaticAnalysisService staticAnalysisService) {
         this.aiService = aiService;
+        this.filesystemService = filesystemService;
+        this.staticAnalysisService = staticAnalysisService;
+    }
+
+    private void appendFileTree(File dir, String prefix, StringBuilder sb, int maxDepth, int[] count) {
+        if (maxDepth < 0 || count[0] > 60) return;
+        File[] files = dir.listFiles();
+        if (files == null) return;
+        for (File f : files) {
+            if (f.getName().equals(".git") || f.getName().equals("target") || f.getName().equals("node_modules")) {
+                continue;
+            }
+            count[0]++;
+            sb.append(prefix).append(f.isDirectory() ? "/" : "").append(f.getName()).append("\n");
+            if (f.isDirectory()) {
+                appendFileTree(f, prefix + "  ", sb, maxDepth - 1, count);
+            }
+        }
     }
 
     @PostMapping("/{name}/chat")
@@ -19,11 +43,23 @@ public class AIController {
             @PathVariable String name,
             @RequestBody ChatRequest request) {
         
-        String context = String.format("Project: %%s, Current File: %%s, Selected Code: '%%s' at Line %%d Col %%d", 
+        File projectDir = filesystemService.getProjectDirectory(name);
+        String summaryText = "";
+        StringBuilder treeBuilder = new StringBuilder();
+        if (projectDir.exists()) {
+            summaryText = staticAnalysisService.readAiSummary(projectDir);
+            treeBuilder.append("Directory Structure:\n");
+            appendFileTree(projectDir, "  ", treeBuilder, 3, new int[]{0});
+        }
+
+        String context = String.format("Project: %s, Current File: %s, Selected Code: '%s' at Line %d Col %d\n\nProject Summary:\n%s\n\n%s", 
                 name, request.currentFilePath(),
                 request.selectedText() != null ? request.selectedText() : "None",
                 request.cursorLine() != null ? request.cursorLine() : 1,
-                request.cursorCol() != null ? request.cursorCol() : 1);
+                request.cursorCol() != null ? request.cursorCol() : 1,
+                summaryText,
+                treeBuilder.toString());
+
         String response = aiService.chatWithRepository(
                 request.message(),
                 request.currentFileContent(),
