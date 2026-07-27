@@ -85,13 +85,31 @@ public class ExecutionService {
                             .collect(Collectors.toList());
                 }
 
-                if (javaFilesExist.isEmpty()) {
-                    sendEvent(emitter, "system", "Error: No Java files found to compile.");
-                    emitter.complete();
-                    return;
-                }
-
                 boolean isWindows = System.getProperty("os.name").toLowerCase().contains("win");
+
+                // Check if Node project or Static Web project
+                boolean isNodeProject = new File(projectDir, "package.json").exists();
+                boolean hasIndexHtml = false;
+                try (Stream<Path> walk = Files.walk(projectDir.toPath())) {
+                    hasIndexHtml = walk.filter(Files::isRegularFile)
+                            .anyMatch(p -> p.getFileName().toString().equalsIgnoreCase("index.html"));
+                } catch (IOException e) {}
+
+                if (javaFilesExist.isEmpty()) {
+                    if (isNodeProject) {
+                        sendEvent(emitter, "system", "Detected Node.js project. Preparing execution...");
+                        runNodeProject(projectDir, targetPort, projectName, emitter, isWindows);
+                        return;
+                    } else if (hasIndexHtml) {
+                        sendEvent(emitter, "system", "Detected Static Web project. Launching embedded web server...");
+                        startStaticFileServer(projectDir, targetPort, projectName, emitter);
+                        return;
+                    } else {
+                        sendEvent(emitter, "system", "Error: No Java files, Node.js packages, or HTML entry points found to run.");
+                        emitter.complete();
+                        return;
+                    }
+                }
                 boolean compileSuccess = false;
                 List<String> runCommand = new ArrayList<>();
                 File runDir = projectDir;
@@ -517,6 +535,140 @@ public class ExecutionService {
         }
 
         return process.waitFor() == 0;
+    }
+
+    private void runNodeProject(File projectDir, int port, String projectName, SseEmitter emitter, boolean isWindows) {
+        CompletableFuture.runAsync(() -> {
+            try {
+                // 1. Run npm install
+                sendEvent(emitter, "system", "Running 'npm install' to resolve dependencies...");
+                List<String> installCmd = isWindows ? List.of("cmd.exe", "/c", "npm", "install") : List.of("npm", "install");
+                boolean installSuccess = runBuildProcess(projectDir, installCmd, emitter);
+                if (!installSuccess) {
+                    sendEvent(emitter, "system", "npm install failed.");
+                    emitter.complete();
+                    return;
+                }
+
+                // 2. Determine start command
+                List<String> runCmd = isWindows ? List.of("cmd.exe", "/c", "npm", "start") : List.of("npm", "start");
+                File packageJson = new File(projectDir, "package.json");
+                if (packageJson.exists()) {
+                    String content = Files.readString(packageJson.toPath());
+                    if (content.contains("\"dev\"")) {
+                        runCmd = isWindows ? List.of("cmd.exe", "/c", "npm", "run", "dev") : List.of("npm", "run", "dev");
+                    }
+                }
+
+                sendEvent(emitter, "system", "Starting Node.js application process...");
+                ProcessBuilder pb = new ProcessBuilder(runCmd);
+                pb.directory(projectDir);
+                pb.redirectErrorStream(true);
+                pb.environment().put("PORT", String.valueOf(port));
+
+                Process process = pb.start();
+                activeProcesses.put(projectName, process);
+                activePorts.put(projectName, port);
+
+                sendEvent(emitter, "started", String.valueOf(port));
+                sendEvent(emitter, "console", "✔ Node.js Application Started");
+                sendEvent(emitter, "console", "Running Port: " + port);
+                sendEvent(emitter, "console", "URL: http://localhost:" + port);
+
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        sendEvent(emitter, "console", line);
+                    }
+                }
+
+                int exitCode = process.waitFor();
+                activeProcesses.remove(projectName);
+                activePorts.remove(projectName);
+                sendEvent(emitter, "system", "Node process exited with code: " + exitCode);
+                emitter.complete();
+
+            } catch (Exception e) {
+                sendEvent(emitter, "system", "Error running Node project: " + e.getMessage());
+                emitter.complete();
+            }
+        });
+    }
+
+    private void startStaticFileServer(File projectDir, int port, String projectName, SseEmitter emitter) {
+        try {
+            com.sun.net.httpserver.HttpServer server = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress(port), 0);
+            server.createContext("/", exchange -> {
+                String path = exchange.getRequestURI().getPath();
+                if (path.endsWith("/")) {
+                    path += "index.html";
+                }
+                File file = new File(projectDir, path.substring(1));
+                if (!file.exists() || file.isDirectory()) {
+                    file = new File(projectDir, "index.html");
+                }
+                if (file.exists() && !file.isDirectory()) {
+                    byte[] bytes = Files.readAllBytes(file.toPath());
+                    String contentType = "text/plain";
+                    String name = file.getName().toLowerCase();
+                    if (name.endsWith(".html")) contentType = "text/html";
+                    else if (name.endsWith(".css")) contentType = "text/css";
+                    else if (name.endsWith(".js")) contentType = "application/javascript";
+                    else if (name.endsWith(".png")) contentType = "image/png";
+                    else if (name.endsWith(".jpg") || name.endsWith(".jpeg")) contentType = "image/jpeg";
+                    else if (name.endsWith(".svg")) contentType = "image/svg+xml";
+                    else if (name.endsWith(".json")) contentType = "application/json";
+
+                    exchange.getResponseHeaders().set("Content-Type", contentType);
+                    exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+                    exchange.sendResponseHeaders(200, bytes.length);
+                    try (java.io.OutputStream os = exchange.getResponseBody()) {
+                        os.write(bytes);
+                    }
+                } else {
+                    String msg = "404 Not Found";
+                    exchange.sendResponseHeaders(404, msg.length());
+                    try (java.io.OutputStream os = exchange.getResponseBody()) {
+                        os.write(msg.getBytes());
+                    }
+                }
+            });
+            server.setExecutor(null);
+            server.start();
+
+            Process mockProcess = new Process() {
+                private boolean alive = true;
+                @Override
+                public java.io.OutputStream getOutputStream() { return new java.io.ByteArrayOutputStream(); }
+                @Override
+                public java.io.InputStream getInputStream() { return new java.io.ByteArrayInputStream(new byte[0]); }
+                @Override
+                public java.io.InputStream getErrorStream() { return new java.io.ByteArrayInputStream(new byte[0]); }
+                @Override
+                public int waitFor() throws InterruptedException {
+                    while (alive) { Thread.sleep(1000); }
+                    return 0;
+                }
+                @Override
+                public int exitValue() { return alive ? 0 : 1; }
+                @Override
+                public void destroy() {
+                    alive = false;
+                    server.stop(0);
+                }
+            };
+            activeProcesses.put(projectName, mockProcess);
+            activePorts.put(projectName, port);
+
+            sendEvent(emitter, "started", String.valueOf(port));
+            sendEvent(emitter, "console", "✔ Static Web Server Started");
+            sendEvent(emitter, "console", "Running Port: " + port);
+            sendEvent(emitter, "console", "URL: http://localhost:" + port);
+
+        } catch (IOException e) {
+            sendEvent(emitter, "system", "Error starting static file server: " + e.getMessage());
+            emitter.complete();
+        }
     }
 
     private void sendEvent(SseEmitter emitter, String type, String text) {
