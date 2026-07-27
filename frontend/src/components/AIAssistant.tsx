@@ -207,29 +207,29 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-card border-l border-border text-foreground">
+    <div className="flex flex-col h-full bg-zinc-950 border-l border-white/5 text-slate-300 select-none">
       {/* Tabs Header */}
-      <div className="flex border-b border-border bg-muted/20 select-none">
+      <div className="flex border-b border-white/5 bg-zinc-900/10 select-none">
         <button
           onClick={() => setActiveTab("insights")}
-          className={`flex-1 flex items-center justify-center space-x-1.5 py-3 text-xs font-semibold uppercase tracking-wider border-b-2 transition-all duration-150 ${
+          className={`flex-1 flex items-center justify-center space-x-2 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all duration-150 ${
             activeTab === "insights"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
+              ? "border-indigo-500 text-indigo-400 bg-white/[0.02]"
+              : "border-transparent text-slate-400 hover:text-white"
           }`}
         >
-          <Sparkles size={14} />
+          <Sparkles size={13} className="text-indigo-400" />
           <span>Insights</span>
         </button>
         <button
           onClick={() => setActiveTab("chat")}
-          className={`flex-1 flex items-center justify-center space-x-1.5 py-3 text-xs font-semibold uppercase tracking-wider border-b-2 transition-all duration-150 ${
+          className={`flex-1 flex items-center justify-center space-x-2 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all duration-150 ${
             activeTab === "chat"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
+              ? "border-indigo-500 text-indigo-400 bg-white/[0.02]"
+              : "border-transparent text-slate-400 hover:text-white"
           }`}
         >
-          <MessageSquare size={14} />
+          <MessageSquare size={13} className="text-indigo-400" />
           <span>AI Assistant</span>
         </button>
       </div>
@@ -238,36 +238,36 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {/* Active Error Alerts */}
         {diagnostics.length > 0 && activeFilePath && (
-          <div className="border border-destructive/30 bg-destructive/10 rounded-lg p-3 space-y-2">
-            <div className="flex items-start space-x-2 text-destructive">
-              <AlertTriangle size={16} className="mt-0.5 flex-shrink-0" />
+          <div className="border border-rose-500/25 bg-rose-950/20 rounded-xl p-4 space-y-3.5 shadow-[0_0_12px_rgba(244,63,94,0.1)]">
+            <div className="flex items-start space-x-2.5 text-rose-400">
+              <AlertTriangle size={15} className="mt-0.5 flex-shrink-0" />
               <div>
-                <h4 className="text-xs font-bold uppercase tracking-wider">
-                  Active File Diagnostic
+                <h4 className="text-[10px] font-bold uppercase tracking-wider text-rose-300">
+                  Compilation Alert
                 </h4>
-                <p className="text-xs text-foreground/90 font-medium">
+                <p className="text-xs text-slate-200 font-medium mt-0.5 leading-relaxed">
                   Line {diagnostics[0].line}: {diagnostics[0].message}
                 </p>
-                <div className="text-[9px] mt-1 text-muted-foreground font-semibold uppercase">
+                <div className="text-[9px] mt-1.5 text-slate-500 font-bold uppercase tracking-wide">
                   Severity: {diagnostics[0].severityLabel} | Confidence: {diagnostics[0].confidence}%
                 </div>
               </div>
             </div>
-            <div className="flex items-center space-x-2 pt-1">
+            <div className="flex items-center space-x-2 pt-1 border-t border-white/5 select-none">
               <button
                 onClick={() => handleExplainError(diagnostics[0])}
-                className="flex items-center space-x-1 bg-destructive/20 text-foreground hover:bg-destructive/30 px-2 py-1 text-[11px] font-semibold rounded transition"
+                className="flex items-center space-x-1.5 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-slate-300 px-3 py-1.5 text-xs font-semibold rounded-lg transition"
               >
-                <Lightbulb size={12} />
-                <span>Explain Error</span>
+                <Lightbulb size={12} className="text-rose-400" />
+                <span>Explain</span>
               </button>
               <button
                 onClick={() => handleProposeFix(diagnostics[0])}
                 disabled={fixLoading}
-                className="flex items-center space-x-1 bg-primary text-primary-foreground hover:bg-primary/95 px-2 py-1 text-[11px] font-semibold rounded disabled:opacity-50 transition"
+                className="flex items-center space-x-1.5 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 text-xs font-semibold rounded-lg disabled:opacity-50 transition shadow-sm shadow-indigo-600/20"
               >
                 <Sparkles size={12} />
-                <span>{fixLoading ? "Generating Fix..." : "Propose Fix"}</span>
+                <span>{fixLoading ? "Generating..." : "Quick Fix"}</span>
               </button>
             </div>
           </div>
@@ -275,61 +275,59 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
 
         {/* Fix Proposal Viewer */}
         {fixProposal && (
-          <div className="border border-primary/20 bg-primary/5 rounded-lg p-3 space-y-3">
+          <div className="glass-card rounded-xl p-4 space-y-3.5 border border-indigo-500/20 shadow-[0_8px_24px_rgba(0,0,0,0.25)]">
             <div>
-              <h4 className="text-xs font-bold text-primary uppercase tracking-wider mb-1">
-                AI Suggested Fix
+              <h4 className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider mb-1">
+                AI Suggested Solution
               </h4>
-              <p className="text-xs text-foreground/80 leading-relaxed font-medium">
+              <p className="text-xs text-slate-300 leading-relaxed font-medium">
                 {fixProposal.explanation}
               </p>
             </div>
             
-            <div className="text-[11px] font-mono border border-border rounded overflow-hidden">
-              <div className="bg-destructive/10 border-b border-border p-2">
-                <span className="text-destructive font-bold uppercase mr-1">[Original]</span>
-                <pre className="overflow-x-auto mt-1 max-h-32 text-foreground/90 whitespace-pre-wrap">{fixProposal.originalCode}</pre>
+            <div className="text-[10px] font-mono border border-white/5 rounded-lg overflow-hidden bg-slate-950/40">
+              <div className="bg-rose-500/[0.04] border-b border-white/5 p-2.5">
+                <span className="text-rose-400 font-bold uppercase text-[9px] block mb-1">[Original Code]</span>
+                <pre className="overflow-x-auto max-h-24 text-slate-400 whitespace-pre-wrap leading-relaxed">{fixProposal.originalCode}</pre>
               </div>
-              <div className="bg-emerald-500/10 p-2">
-                <span className="text-emerald-500 font-bold uppercase mr-1">[Proposed]</span>
-                <pre className="overflow-x-auto mt-1 max-h-32 text-foreground/90 whitespace-pre-wrap">{fixProposal.proposedCode}</pre>
+              <div className="bg-emerald-500/[0.04] p-2.5">
+                <span className="text-emerald-400 font-bold uppercase text-[9px] block mb-1">[Proposed Solution]</span>
+                <pre className="overflow-x-auto max-h-24 text-slate-300 whitespace-pre-wrap leading-relaxed">{fixProposal.proposedCode}</pre>
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
-              {/* Preview Fix (Large Diff Modal launcher) */}
+            <div className="flex items-center justify-between pt-1 border-t border-white/5">
               <button
                 onClick={() => setShowPreview(true)}
-                className="flex items-center space-x-1 hover:bg-muted-foreground/10 px-2 py-1 text-[11px] font-semibold rounded text-primary transition"
+                className="flex items-center space-x-1 hover:bg-white/5 px-2.5 py-1 text-xs font-bold rounded-lg text-indigo-400 hover:text-indigo-300 transition"
               >
                 <Eye size={12} />
-                <span>Preview Fix</span>
+                <span>Preview Diff</span>
               </button>
 
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-1.5">
                 <button
                   onClick={() => setFixProposal(null)}
-                  className="flex items-center space-x-1 bg-muted hover:bg-muted-foreground/20 px-2 py-1 text-[11px] font-semibold rounded text-foreground transition"
+                  className="flex items-center space-x-1 bg-white/5 hover:bg-white/10 px-2.5 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition"
                 >
                   <X size={12} />
-                  <span>Reject</span>
                 </button>
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(fixProposal.proposedCode);
                     alert("Copied to clipboard!");
                   }}
-                  className="flex items-center space-x-1 bg-muted hover:bg-muted-foreground/20 px-2 py-1 text-[11px] font-semibold rounded text-foreground transition"
+                  title="Copy Code"
+                  className="flex items-center space-x-1 bg-white/5 hover:bg-white/10 px-2.5 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition"
                 >
                   <Copy size={12} />
-                  <span>Copy</span>
                 </button>
                 <button
                   onClick={() => {
                     onApplyFix(fixProposal.proposedCode, fixProposal.originalCode);
                     setFixProposal(null);
                   }}
-                  className="flex items-center space-x-1 bg-primary text-primary-foreground hover:bg-primary/95 px-2.5 py-1 text-[11px] font-semibold rounded transition"
+                  className="flex items-center space-x-1 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 text-xs font-semibold rounded-lg transition shadow-sm"
                 >
                   <Check size={12} />
                   <span>Apply</span>
@@ -341,19 +339,19 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
 
         {/* Tab Contents */}
         {activeTab === "insights" ? (
-          <div className="prose prose-sm dark:prose-invert max-w-none text-sm text-foreground/90 whitespace-pre-line leading-relaxed font-sans select-text">
+          <div className="prose prose-sm dark:prose-invert max-w-none text-xs text-slate-300 whitespace-pre-line leading-relaxed font-sans select-text p-1">
             {insights || (
-              <div className="text-center text-xs text-muted-foreground pt-8">
-                Loading repository insights...
+              <div className="text-center text-xs text-slate-500 pt-12 italic">
+                Gathering workspace insights...
               </div>
             )}
           </div>
         ) : (
-          <div className="flex flex-col h-[400px] border border-border rounded-lg bg-background">
-            <div className="flex-1 overflow-y-auto p-3 space-y-3 select-text">
+          <div className="flex flex-col h-[420px] border border-white/5 rounded-xl bg-slate-950/50 shadow-inner overflow-hidden">
+            <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5 select-text">
               {chatHistory.length === 0 && (
-                <p className="text-xs text-muted-foreground text-center mt-8 select-none">
-                  Ask me anything about this repository's structure, files, or errors.
+                <p className="text-xs text-slate-500 text-center mt-12 select-none italic">
+                  Ask me anything about files, compilation issues, or project setup.
                 </p>
               )}
               {chatHistory.map((msg, i) => (
@@ -362,10 +360,10 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
                   className={`flex ${msg.sender === "user" ? "justify-end" : "justify-start"}`}
                 >
                   <div
-                    className={`max-w-[85%] rounded-lg px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap ${
+                    className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed ${
                       msg.sender === "user"
-                        ? "bg-primary text-primary-foreground font-medium"
-                        : "bg-muted text-foreground"
+                        ? "bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-tr-none shadow-[0_2px_8px_rgba(99,102,241,0.15)] font-medium"
+                        : "bg-slate-900 border border-white/5 text-slate-300 rounded-tl-none shadow-sm"
                     }`}
                   >
                     {msg.sender === "ai" ? renderMessageWithLinks(msg.text) : msg.text}
@@ -374,26 +372,26 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
               ))}
               {loading && (
                 <div className="flex justify-start select-none">
-                  <div className="bg-muted text-muted-foreground rounded-lg px-3 py-2 text-xs italic animate-pulse">
-                    Gemini is thinking...
+                  <div className="bg-slate-900 border border-white/5 text-slate-500 rounded-2xl rounded-tl-none px-3.5 py-2.5 text-xs italic animate-pulse">
+                    Orvix AI is thinking...
                   </div>
                 </div>
               )}
               <div ref={messagesEndRef} />
             </div>
 
-            <form onSubmit={handleSendMessage} className="p-2 border-t border-border flex items-center space-x-1 select-none">
+            <form onSubmit={handleSendMessage} className="p-2 border-t border-white/5 bg-zinc-950/70 flex items-center space-x-1.5 select-none">
               <input
                 type="text"
                 value={chatMessage}
                 onChange={(e) => setChatMessage(e.target.value)}
-                placeholder="Ask AI..."
-                className="flex-1 bg-muted/60 text-xs rounded pl-2.5 pr-2 py-2 border border-border focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                placeholder="Message Orvix AI..."
+                className="flex-1 bg-slate-900/60 text-xs rounded-lg pl-3 pr-2 py-2 border border-white/5 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-200 placeholder-slate-600 transition"
               />
               <button
                 type="submit"
                 disabled={loading}
-                className="bg-primary text-primary-foreground hover:bg-primary/95 p-2 rounded disabled:opacity-50 transition"
+                className="bg-indigo-600 hover:bg-indigo-500 text-white p-2 rounded-lg disabled:opacity-50 transition shadow-sm"
               >
                 <MessageSquare size={13} />
               </button>
@@ -404,46 +402,46 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
 
       {/* Large Diff Preview Modal (Feature 11 / Preview Fix) */}
       {showPreview && fixProposal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-6 select-none">
-          <div className="bg-card border border-border rounded-xl w-full max-w-4xl shadow-2xl flex flex-col h-[85vh]">
-            <div className="flex items-center justify-between p-4 border-b border-border">
-              <h3 className="font-bold text-base text-primary uppercase tracking-wide flex items-center space-x-2">
-                <Sparkles size={18} />
-                <span>Proposed Change Preview</span>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-6 select-none animate-fade-in">
+          <div className="bg-zinc-950 border border-white/10 rounded-2xl w-full max-w-4xl shadow-2xl flex flex-col h-[80vh] overflow-hidden">
+            <div className="flex items-center justify-between p-4.5 border-b border-white/5 bg-zinc-900/20">
+              <h3 className="font-bold text-sm text-indigo-400 uppercase tracking-wide flex items-center space-x-2">
+                <Sparkles size={16} />
+                <span>Proposed Change Inspector</span>
               </h3>
               <button
                 onClick={() => setShowPreview(false)}
-                className="text-muted-foreground hover:text-foreground text-sm font-semibold p-1 hover:bg-muted rounded"
+                className="text-slate-400 hover:text-white text-sm font-semibold p-1.5 hover:bg-white/5 rounded-lg transition"
               >
-                Close
+                <X size={15} />
               </button>
             </div>
             
-            <div className="p-4 border-b border-border bg-muted/10 text-xs text-foreground/80 leading-relaxed select-text">
-              <span className="font-bold text-primary">Explanation:</span> {fixProposal.explanation}
+            <div className="p-4 border-b border-white/5 bg-indigo-500/[0.02] text-xs text-slate-300 leading-relaxed select-text">
+              <span className="font-bold text-indigo-400 mr-1.5">Explanation:</span> {fixProposal.explanation}
             </div>
 
             {/* Split Diff display */}
-            <div className="flex-1 overflow-hidden grid grid-cols-2 gap-4 p-4 min-h-0 select-text">
-              <div className="flex flex-col h-full border border-border rounded overflow-hidden">
-                <div className="bg-destructive/10 border-b border-border p-2 text-xs font-bold text-destructive uppercase select-none">
+            <div className="flex-1 overflow-hidden grid grid-cols-2 gap-4 p-4 min-h-0 select-text bg-zinc-900/10">
+              <div className="flex flex-col h-full border border-white/5 rounded-xl overflow-hidden bg-slate-950">
+                <div className="bg-rose-500/5 border-b border-white/5 px-3 py-2 text-xs font-bold text-rose-400 uppercase select-none">
                   Original Code
                 </div>
-                <pre className="flex-1 overflow-auto p-3 font-mono text-xs bg-muted/5 leading-relaxed whitespace-pre">{fixProposal.originalCode}</pre>
+                <pre className="flex-1 overflow-auto p-4 font-mono text-xs text-slate-400 leading-relaxed whitespace-pre bg-transparent scrollbar-thin">{fixProposal.originalCode}</pre>
               </div>
-              <div className="flex flex-col h-full border border-border rounded overflow-hidden">
-                <div className="bg-emerald-500/10 border-b border-border p-2 text-xs font-bold text-emerald-500 uppercase select-none">
-                  Proposed Fix
+              <div className="flex flex-col h-full border border-white/5 rounded-xl overflow-hidden bg-slate-950">
+                <div className="bg-emerald-500/5 border-b border-white/5 px-3 py-2 text-xs font-bold text-emerald-400 uppercase select-none">
+                  Proposed Solution
                 </div>
-                <pre className="flex-1 overflow-auto p-3 font-mono text-xs bg-muted/5 leading-relaxed whitespace-pre">{fixProposal.proposedCode}</pre>
+                <pre className="flex-1 overflow-auto p-4 font-mono text-xs text-slate-200 leading-relaxed whitespace-pre bg-transparent scrollbar-thin">{fixProposal.proposedCode}</pre>
               </div>
             </div>
 
             {/* Footer actions */}
-            <div className="p-4 border-t border-border flex justify-end space-x-2 select-none">
+            <div className="p-4.5 border-t border-white/5 flex justify-end space-x-2 bg-zinc-900/20 select-none">
               <button
                 onClick={() => setShowPreview(false)}
-                className="bg-muted hover:bg-muted-foreground/20 text-xs font-semibold px-4 py-2 rounded transition"
+                className="bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold px-4.5 py-2.5 rounded-xl border border-white/5 transition"
               >
                 Close Preview
               </button>
@@ -453,9 +451,9 @@ export const AIAssistant: React.FC<AIAssistantProps> = ({
                   setFixProposal(null);
                   setShowPreview(false);
                 }}
-                className="bg-primary text-primary-foreground hover:bg-primary/95 text-xs font-semibold px-5 py-2 rounded transition shadow-sm"
+                className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-5 py-2.5 rounded-xl transition shadow-lg shadow-indigo-600/25"
               >
-                Apply Fix to File
+                Apply Fix
               </button>
             </div>
           </div>

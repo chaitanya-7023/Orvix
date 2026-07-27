@@ -458,50 +458,61 @@ export default function App() {
   // Project Dashboard / Landing page if no project open
   if (!projectName) {
     return (
-      <div className="min-h-screen bg-background text-foreground flex flex-col justify-between select-none">
+      <div className="min-h-screen bg-slate-950 text-foreground flex flex-col justify-between select-none relative overflow-hidden">
+        {/* Ambient background glows */}
+        <div className="w-[450px] h-[450px] bg-indigo-500/10 rounded-full blur-[120px] animate-float-slow absolute top-[-10%] left-[-10%] pointer-events-none" />
+        <div className="w-[500px] h-[500px] bg-blue-500/10 rounded-full blur-[140px] animate-float-delayed absolute bottom-[-15%] right-[-10%] pointer-events-none" />
+
         {/* Navigation */}
-        <header className="flex justify-between items-center p-5 border-b border-border bg-card">
-          <div className="flex items-center space-x-2">
-            <span className="font-bold text-xl text-primary tracking-tight">Orvix</span>
-            <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-mono">MVP</span>
+        <header className="flex justify-between items-center px-8 py-4 border-b border-white/5 bg-slate-950/65 backdrop-blur-md relative z-10">
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-500 to-blue-500 flex items-center justify-center shadow-[0_0_15px_rgba(99,102,241,0.5)]">
+              <span className="text-white font-black text-sm">O</span>
+            </div>
+            <span className="font-bold text-lg tracking-tight text-white">Orvix</span>
+            <span className="text-[9px] uppercase tracking-wider bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 rounded-full font-mono">PRO</span>
           </div>
           <button
             onClick={() => setIsDarkTheme(!isDarkTheme)}
-            className="p-2 bg-muted hover:bg-muted/80 rounded-md transition"
+            className="p-2 bg-slate-900/80 hover:bg-slate-800/80 border border-white/5 rounded-lg transition-all duration-200"
           >
-            {isDarkTheme ? <Sun size={16} /> : <Moon size={16} />}
+            {isDarkTheme ? <Sun size={15} className="text-amber-400" /> : <Moon size={15} className="text-indigo-400" />}
           </button>
         </header>
 
         {/* Dashboard Landing Body */}
-        <main className="flex-1 max-w-4xl mx-auto w-full px-5 py-12 flex flex-col justify-center items-center">
-          <div className="text-center max-w-lg mb-10 space-y-3">
-            <h1 className="text-4xl font-extrabold tracking-tight">Import. Build. Debug. Fix.</h1>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              Paste a public GitHub Java repository to instantiate a live IDE. Write code, compiler error highlights trigger in real-time, execute projects instantly, and resolve runtime stack exceptions with Gemini.
+        <main className="flex-1 max-w-5xl mx-auto w-full px-6 py-16 flex flex-col justify-center items-center relative z-10">
+          <div className="text-center max-w-2xl mb-12 space-y-4">
+            <h1 className="text-5xl font-black tracking-tight text-white leading-tight">
+              Import. Build. Debug. <span className="text-gradient">Optimize.</span>
+            </h1>
+            <p className="text-sm text-slate-400 leading-relaxed max-w-xl mx-auto">
+              Paste a public GitHub Java repository to instantly spin up a full-featured workspace. Write code with real-time diagnostics, compile seamlessly, run dynamically, and analyze exceptions with AI diagnostics.
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full">
             {/* Import Repository Box */}
-            <div className="bg-card border border-border rounded-xl p-6 space-y-4 shadow-sm">
-              <div className="flex items-center space-x-2">
-                <GitBranch size={20} className="text-primary" />
-                <h3 className="font-bold text-base">Import from GitHub</h3>
+            <div className="glass-card rounded-2xl p-7 space-y-5 hover:border-white/10 transition-all duration-300">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-indigo-500/10 rounded-lg border border-indigo-500/20">
+                  <GitBranch size={18} className="text-indigo-400" />
+                </div>
+                <h3 className="font-bold text-base text-white">Import from GitHub</h3>
               </div>
-              <form onSubmit={handleImport} className="space-y-3">
+              <form onSubmit={handleImport} className="space-y-4">
                 <input
                   type="text"
                   placeholder="https://github.com/username/project"
                   value={importUrl}
                   onChange={(e) => setImportUrl(e.target.value)}
                   disabled={importing}
-                  className="w-full text-sm bg-muted/50 rounded-md px-3.5 py-2.5 border border-border focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary disabled:opacity-50"
+                  className="w-full text-sm bg-slate-900/60 rounded-xl px-4 py-3 border border-white/5 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 disabled:opacity-50 transition-all text-white placeholder-slate-500"
                 />
                 <button
                   type="submit"
                   disabled={importing || !importUrl.trim()}
-                  className="w-full bg-primary text-primary-foreground hover:bg-primary/95 text-sm font-semibold py-2.5 rounded-md transition disabled:opacity-50"
+                  className="w-full btn-premium text-white text-sm font-semibold py-3 rounded-xl transition disabled:opacity-50"
                 >
                   {importing ? "Importing Project..." : "Import Repository"}
                 </button>
@@ -509,25 +520,25 @@ export default function App() {
 
               {/* Real-time Import Progress Stages */}
               {importing && (
-                <div className="bg-muted/30 border border-border rounded-lg p-4 space-y-3">
+                <div className="bg-slate-900/80 border border-white/5 rounded-xl p-5 space-y-3.5 shadow-inner">
                   <div className="flex items-center justify-between text-xs font-semibold">
-                    <span className="text-primary">{currentImportStage}</span>
-                    <span className="text-muted-foreground">
+                    <span className="text-indigo-400">{currentImportStage}</span>
+                    <span className="text-slate-400">
                       {Math.round(((IMPORT_STAGES.indexOf(currentImportStage) + 1) / IMPORT_STAGES.length) * 100)}%
                     </span>
                   </div>
                   
                   {/* Progress bar indicator */}
-                  <div className="w-full bg-muted h-2 rounded-full overflow-hidden">
+                  <div className="w-full bg-slate-950 h-1.5 rounded-full overflow-hidden border border-white/5">
                     <div
-                      className="bg-primary h-2 transition-all duration-300"
+                      className="bg-gradient-to-r from-indigo-500 to-blue-500 h-1.5 transition-all duration-300 shadow-[0_0_8px_rgba(99,102,241,0.5)]"
                       style={{
                         width: `${((IMPORT_STAGES.indexOf(currentImportStage) + 1) / IMPORT_STAGES.length) * 100}%`,
                       }}
                     />
                   </div>
 
-                  <p className="text-[11px] text-muted-foreground font-medium animate-pulse">
+                  <p className="text-[11px] text-slate-400 font-medium animate-pulse">
                     {importProgressText}
                   </p>
                 </div>
@@ -535,14 +546,16 @@ export default function App() {
             </div>
 
             {/* Select Local Projects Box */}
-            <div className="bg-card border border-border rounded-xl p-6 space-y-4 shadow-sm flex flex-col">
-              <h3 className="font-bold text-base flex items-center space-x-2">
-                <ConsoleIcon size={20} className="text-primary" />
-                <span>Existing Workspaces</span>
-              </h3>
-              <div className="flex-1 min-h-[140px] overflow-y-auto space-y-2 border border-border rounded-lg p-2.5 bg-muted/10">
+            <div className="glass-card rounded-2xl p-7 space-y-5 flex flex-col hover:border-white/10 transition-all duration-300">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                  <ConsoleIcon size={18} className="text-blue-400" />
+                </div>
+                <h3 className="font-bold text-base text-white">Existing Workspaces</h3>
+              </div>
+              <div className="flex-1 min-h-[160px] overflow-y-auto space-y-2 border border-white/5 rounded-xl p-3 bg-slate-900/30">
                 {projectList.length === 0 ? (
-                  <div className="text-xs text-muted-foreground italic text-center pt-8">
+                  <div className="text-xs text-slate-500 italic text-center pt-10">
                     No active workspaces found
                   </div>
                 ) : (
@@ -553,10 +566,12 @@ export default function App() {
                         setProjectName(proj);
                         loadProjectTree(proj);
                       }}
-                      className="w-full flex items-center justify-between p-2 hover:bg-muted rounded text-left text-sm font-medium transition"
+                      className="w-full flex items-center justify-between p-3 hover:bg-white/5 border border-transparent hover:border-white/5 rounded-xl text-left text-sm font-medium transition-all duration-150 text-slate-300 hover:text-white"
                     >
                       <span className="truncate">{proj}</span>
-                      <ExternalLink size={13} className="text-muted-foreground" />
+                      <div className="w-5 h-5 rounded-md bg-white/5 flex items-center justify-center">
+                        <ExternalLink size={12} className="text-slate-400" />
+                      </div>
                     </button>
                   ))
                 )}
@@ -565,8 +580,8 @@ export default function App() {
           </div>
         </main>
 
-        <footer className="p-5 border-t border-border text-center text-xs text-muted-foreground bg-card select-none">
-          Orvix MVP IDE © 2026. Made with React, Spring Boot, JGit & Gemini API.
+        <footer className="py-6 border-t border-white/5 text-center text-xs text-slate-500 bg-slate-950/40 relative z-10 select-none">
+          Orvix IDE © 2026. Made with React, Spring Boot, JGit & Gemini API.
         </footer>
       </div>
     );
@@ -574,9 +589,9 @@ export default function App() {
 
   // Active Workspace IDE view
   return (
-    <div className="h-screen bg-background text-foreground flex flex-col select-none overflow-hidden">
+    <div className="h-screen bg-[#09090b] text-foreground flex flex-col select-none overflow-hidden">
       {/* Workspace Menu Bar */}
-      <header className="flex justify-between items-center px-4 py-2 border-b border-border bg-card">
+      <header className="flex justify-between items-center px-5 py-2.5 border-b border-white/5 bg-zinc-950/70 backdrop-blur-md relative z-20">
         <div className="flex items-center space-x-4">
           <button
             onClick={() => {
@@ -587,19 +602,17 @@ export default function App() {
               setLogs([]);
               handleStopProject();
             }}
-            className="flex items-center space-x-1.5 text-xs text-muted-foreground hover:text-foreground font-medium p-1 hover:bg-muted rounded transition"
+            className="flex items-center space-x-1.5 text-xs text-slate-400 hover:text-white font-medium px-2.5 py-1.5 bg-white/5 hover:bg-white/10 border border-white/5 rounded-lg transition-all"
           >
             <ArrowLeft size={13} />
             <span>Dashboard</span>
           </button>
           
-          <div className="h-4 w-[1px] bg-border" />
+          <div className="h-5 w-[1px] bg-white/10" />
           
-          <div className="flex items-center space-x-2">
-            <span className="font-bold text-sm text-primary">{projectName}</span>
-            <span className="text-[10px] bg-emerald-500/10 text-emerald-500 font-bold px-1.5 py-0.5 rounded">
-              Active
-            </span>
+          <div className="flex items-center space-x-2.5 bg-slate-900/60 border border-white/5 rounded-lg px-2.5 py-1">
+            <span className="font-bold text-xs text-indigo-400 tracking-wide">{projectName}</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" title="Active Workspace" />
           </div>
         </div>
 
@@ -608,43 +621,43 @@ export default function App() {
           <button
             onClick={handleSaveActiveFile}
             disabled={!activeFilePath}
-            className="flex items-center space-x-1 bg-muted hover:bg-muted-foreground/20 px-2.5 py-1.5 text-xs font-semibold rounded disabled:opacity-40 transition"
+            className="flex items-center space-x-1.5 bg-white/5 hover:bg-white/10 border border-white/5 text-slate-200 px-3 py-1.5 text-xs font-semibold rounded-lg disabled:opacity-40 transition-all duration-150"
           >
             <Save size={13} />
-            <span>Save (Ctrl+S)</span>
+            <span>Save</span>
           </button>
           <button
             onClick={() => loadProjectTree(projectName)}
-            className="flex items-center space-x-1 bg-muted hover:bg-muted-foreground/20 px-2.5 py-1.5 text-xs font-semibold rounded transition"
+            className="flex items-center space-x-1.5 bg-white/5 hover:bg-white/10 border border-white/5 text-slate-200 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150"
           >
             <RotateCw size={13} />
-            <span>Refresh Explorer</span>
+            <span>Refresh</span>
           </button>
 
-          <div className="h-4 w-[1px] bg-border mx-1" />
+          <div className="h-5 w-[1px] bg-white/10 mx-1.5" />
 
            {isRunning ? (
              <div className="flex items-center space-x-2">
                <button
                  onClick={handleStopProject}
-                 className="flex items-center space-x-1 bg-destructive text-destructive-foreground hover:bg-destructive/90 px-3 py-1.5 text-xs font-semibold rounded shadow-sm transition"
+                 className="flex items-center space-x-1.5 bg-gradient-to-r from-rose-500 to-red-600 text-white px-3.5 py-1.5 text-xs font-bold rounded-lg shadow-[0_0_12px_rgba(244,63,94,0.3)] hover:brightness-110 transition-all"
                >
-                 <Square size={13} />
+                 <Square size={12} />
                  <span>Stop</span>
                </button>
                {activePort && (
                  <>
                    <button
                      onClick={() => window.open(`http://localhost:${activePort}`, "_blank")}
-                     className="flex items-center space-x-1 bg-teal-600 text-white hover:bg-teal-700 px-3 py-1.5 text-xs font-semibold rounded shadow-sm transition"
+                     className="flex items-center space-x-1.5 bg-gradient-to-r from-teal-500 to-emerald-600 text-white px-3.5 py-1.5 text-xs font-bold rounded-lg shadow-[0_0_12px_rgba(16,185,129,0.3)] hover:brightness-110 transition-all"
                      title="Open Application in new tab"
                    >
-                     <ExternalLink size={13} />
-                     <span>Open Application</span>
+                     <ExternalLink size={12} />
+                     <span>Open App</span>
                    </button>
                    <button
                      onClick={handleHealthCheck}
-                     className="flex items-center space-x-1 bg-indigo-600 text-white hover:bg-indigo-700 px-3 py-1.5 text-xs font-semibold rounded shadow-sm transition"
+                     className="flex items-center space-x-1.5 bg-gradient-to-r from-indigo-500 to-blue-600 text-white px-3.5 py-1.5 text-xs font-bold rounded-lg shadow-[0_0_12px_rgba(99,102,241,0.3)] hover:brightness-110 transition-all"
                      title="Run health check ping"
                    >
                      <span>Health Check</span>
@@ -655,9 +668,9 @@ export default function App() {
            ) : (
              <button
                onClick={handleRunProject}
-               className="flex items-center space-x-1 bg-primary text-primary-foreground hover:bg-primary/95 px-3 py-1.5 text-xs font-semibold rounded shadow-sm transition"
+               className="flex items-center space-x-1.5 bg-gradient-to-r from-indigo-500 to-blue-600 text-white px-4 py-1.5 text-xs font-bold rounded-lg shadow-[0_0_12px_rgba(99,102,241,0.35)] hover:brightness-110 transition-all"
              >
-               <Play size={13} />
+               <Play size={12} />
                <span>Run</span>
              </button>
            )}
