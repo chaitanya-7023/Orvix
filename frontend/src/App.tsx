@@ -13,7 +13,7 @@ interface OpenFile {
   isDirty: boolean;
 }
 
-const API_BASE = window.location.port === "5173"
+const API_BASE = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
   ? `${window.location.protocol}//${window.location.hostname}:8080`
   : window.location.origin;
 
@@ -647,14 +647,16 @@ export default function App() {
                </button>
                {activePort && (
                  <>
-                   <button
-                     onClick={() => window.open(`http://localhost:${activePort}`, "_blank")}
-                     className="flex items-center space-x-1.5 bg-gradient-to-r from-teal-500 to-emerald-600 text-white px-3.5 py-1.5 text-xs font-bold rounded-lg shadow-[0_0_12px_rgba(16,185,129,0.3)] hover:brightness-110 transition-all"
-                     title="Open Application in new tab"
-                   >
-                     <ExternalLink size={12} />
-                     <span>Open App</span>
-                   </button>
+                    <a
+                      href={`http://localhost:${activePort}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center space-x-1.5 bg-gradient-to-r from-teal-500 to-emerald-600 text-white px-3.5 py-1.5 text-xs font-bold rounded-lg shadow-[0_0_12px_rgba(16,185,129,0.3)] hover:brightness-110 transition-all"
+                      title="Open Application in new tab"
+                    >
+                      <ExternalLink size={12} />
+                      <span>Open App</span>
+                    </a>
                    <button
                      onClick={handleHealthCheck}
                      className="flex items-center space-x-1.5 bg-gradient-to-r from-indigo-500 to-blue-600 text-white px-3.5 py-1.5 text-xs font-bold rounded-lg shadow-[0_0_12px_rgba(99,102,241,0.3)] hover:brightness-110 transition-all"
