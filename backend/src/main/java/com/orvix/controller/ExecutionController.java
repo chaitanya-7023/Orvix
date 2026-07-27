@@ -48,29 +48,108 @@ public class ExecutionController {
             return ResponseEntity.notFound().build();
         }
         
+        // 1. Try Actuator first
         try {
             java.net.HttpURLConnection conn = (java.net.HttpURLConnection) new java.net.URL("http://localhost:" + port + "/actuator/health").openConnection();
             conn.setRequestMethod("GET");
-            conn.setConnectTimeout(2000);
-            conn.setReadTimeout(2000);
+            conn.setConnectTimeout(1500);
+            conn.setReadTimeout(1500);
             int code = conn.getResponseCode();
             if (code == 200) {
-                return ResponseEntity.ok(Map.of("status", "UP", "statusCode", code));
-            } else {
-                return ResponseEntity.ok(Map.of("status", "DOWN", "statusCode", code));
+                return ResponseEntity.ok(Map.of("status", "UP", "statusCode", code, "message", "Actuator health check passed"));
             }
         } catch (Exception e) {
-            // Actuator might not be present, check root URL
-            try {
-                java.net.HttpURLConnection conn = (java.net.HttpURLConnection) new java.net.URL("http://localhost:" + port + "/").openConnection();
-                conn.setRequestMethod("GET");
-                conn.setConnectTimeout(2000);
-                conn.setReadTimeout(2000);
-                int code = conn.getResponseCode();
-                return ResponseEntity.ok(Map.of("status", "UP", "statusCode", code, "message", "Root endpoint responded"));
-            } catch (Exception ex) {
-                return ResponseEntity.ok(Map.of("status", "OFFLINE", "error", ex.getMessage()));
+            // ignore and fallback to root check
+        }
+
+        // 2. Fallback to root endpoint check
+        try {
+            java.net.HttpURLConnection conn = (java.net.HttpURLConnection) new java.net.URL("http://localhost:" + port + "/").openConnection();
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(1500);
+            conn.setReadTimeout(1500);
+            int code = conn.getResponseCode();
+            // Any response code from the port (e.g. 200, 302, 404) means the server is actively listening!
+            return ResponseEntity.ok(Map.of("status", "UP", "statusCode", code, "message", "Root endpoint responded"));
+        } catch (Exception ex) {
+            return ResponseEntity.ok(Map.of("status", "OFFLINE", "error", ex.getMessage()));
+        }
+    }
+
+    @RequestMapping(value = "/{name}/proxy/**")
+    public ResponseEntity<byte[]> proxyRequest(
+            @PathVariable String name,
+            jakarta.servlet.http.HttpServletRequest request,
+            @RequestBody(required = false) byte[] body) {
+        
+        Integer port = executionService.getActivePort(name);
+        if (port == null) {
+            return ResponseEntity.status(404).body("Project is not running.".getBytes());
+        }
+
+        String uri = request.getRequestURI();
+        String searchStr = "/proxy";
+        int idx = uri.indexOf(searchStr);
+        String subPath = "";
+        if (idx != -1) {
+            subPath = uri.substring(idx + searchStr.length());
+        }
+        if (request.getQueryString() != null) {
+            subPath += "?" + request.getQueryString();
+        }
+
+        try {
+            String targetUrl = "http://localhost:" + port + subPath;
+            java.net.HttpURLConnection conn = (java.net.HttpURLConnection) new java.net.URL(targetUrl).openConnection();
+            conn.setRequestMethod(request.getMethod());
+            conn.setConnectTimeout(3000);
+            conn.setReadTimeout(5000);
+            
+            // Copy request headers
+            java.util.Enumeration<String> headerNames = request.getHeaderNames();
+            while (headerNames.hasMoreElements()) {
+                String headerName = headerNames.nextElement();
+                if (headerName.equalsIgnoreCase("host") || headerName.equalsIgnoreCase("connection")) {
+                    continue;
+                }
+                conn.setRequestProperty(headerName, request.getHeader(headerName));
             }
+
+            // Copy body if present
+            if (body != null && body.length > 0) {
+                conn.setDoOutput(true);
+                try (java.io.OutputStream os = conn.getOutputStream()) {
+                    os.write(body);
+                }
+            }
+
+            int statusCode = conn.getResponseCode();
+            
+            // Read response
+            java.io.InputStream is;
+            if (statusCode >= 400) {
+                is = conn.getErrorStream();
+            } else {
+                is = conn.getInputStream();
+            }
+
+            byte[] responseBytes = new byte[0];
+            if (is != null) {
+                responseBytes = is.readAllBytes();
+            }
+
+            // Copy response headers
+            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            conn.getHeaderFields().forEach((k, v) -> {
+                if (k != null && !k.equalsIgnoreCase("transfer-encoding") && !k.equalsIgnoreCase("connection")) {
+                    headers.put(k, v);
+                }
+            });
+
+            return new ResponseEntity<>(responseBytes, headers, org.springframework.http.HttpStatus.valueOf(statusCode));
+
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(("Proxy Error: " + e.getMessage()).getBytes());
         }
     }
 }

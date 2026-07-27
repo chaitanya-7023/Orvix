@@ -648,7 +648,7 @@ export default function App() {
                {activePort && (
                  <>
                     <a
-                      href={`http://localhost:${activePort}`}
+                      href={`${API_BASE}/api/projects/${projectName}/proxy/`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center space-x-1.5 bg-gradient-to-r from-teal-500 to-emerald-600 text-white px-3.5 py-1.5 text-xs font-bold rounded-lg shadow-[0_0_12px_rgba(16,185,129,0.3)] hover:brightness-110 transition-all"
