@@ -5,7 +5,7 @@ import { CodeEditor } from "./components/CodeEditor";
 import type { Diagnostic } from "./components/CodeEditor";
 import { AIAssistant } from "./components/AIAssistant";
 import { ConsolePanel } from "./components/ConsolePanel";
-import { Play, Square, Save, RotateCw, Moon, Sun, ArrowLeft, GitBranch, Terminal as ConsoleIcon, ExternalLink, Settings, AlertTriangle } from "lucide-react";
+import { Play, Square, Save, RotateCw, Moon, Sun, ArrowLeft, GitBranch, Terminal as ConsoleIcon, ExternalLink, Settings, AlertTriangle, Check } from "lucide-react";
 
 interface OpenFile {
   path: string;
