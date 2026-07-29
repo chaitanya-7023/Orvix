@@ -310,6 +310,65 @@ public class FilesystemService {
         return rawFile;
     }
 
+    private boolean shouldExclude(File file, File projectDir) {
+        String name = file.getName();
+        String relativePath = projectDir.toPath().relativize(file.toPath()).toString().replace('\\', '/');
+        
+        if (name.equals(".git") || name.equals("node_modules") || name.equals("target") || name.equals("build")
+                || name.equals(".idea") || name.equals(".vscode") || name.equals(".gradle") || name.equals(".cache")
+                || name.equals(".next") || name.equals(".parcel-cache") || name.equals("out") || name.equals("dist")) {
+            return true;
+        }
+
+        if (name.endsWith(".class") || name.endsWith(".log") || name.endsWith(".tmp") || name.endsWith(".temp")
+                || name.equals(".DS_Store") || name.equalsIgnoreCase("Thumbs.db")) {
+            return true;
+        }
+
+        String[] parts = relativePath.split("/");
+        for (String part : parts) {
+            if (part.equals(".git") || part.equals("node_modules") || part.equals("target") || part.equals("build")
+                    || part.equals(".idea") || part.equals(".vscode") || part.equals(".gradle") || part.equals(".cache")
+                    || part.equals(".next") || part.equals(".parcel-cache") || part.equals("out") || part.equals("dist")) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public void exportProjectAsZip(String projectName, java.io.OutputStream outStream) throws IOException {
+        File projectDir = getProjectDirectory(projectName);
+        if (!projectDir.exists()) {
+            throw new IllegalArgumentException("Project directory does not exist: " + projectName);
+        }
+
+        try (java.util.zip.ZipOutputStream zos = new java.util.zip.ZipOutputStream(outStream)) {
+            java.util.List<Path> files;
+            try (java.util.stream.Stream<Path> walk = Files.walk(projectDir.toPath())) {
+                files = walk.filter(Files::isRegularFile)
+                            .collect(java.util.stream.Collectors.toList());
+            }
+
+            for (Path path : files) {
+                File file = path.toFile();
+                if (shouldExclude(file, projectDir)) {
+                    continue;
+                }
+                
+                String relativePath = projectDir.toPath().relativize(path).toString().replace('\\', '/');
+                if (!file.canRead()) {
+                    throw new IOException("File is not readable: " + relativePath);
+                }
+
+                java.util.zip.ZipEntry zipEntry = new java.util.zip.ZipEntry(relativePath);
+                zos.putNextEntry(zipEntry);
+                Files.copy(path, zos);
+                zos.closeEntry();
+            }
+        }
+    }
+
     public static record FileNode(
         String name,
         String path,

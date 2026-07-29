@@ -255,5 +255,47 @@ public class ProjectController {
         
         return ResponseEntity.ok(sb.toString());
     }
+
+    @GetMapping("/{name}/export")
+    public ResponseEntity<?> exportProject(@PathVariable String name) {
+        java.io.File tempZip = null;
+        try {
+            tempZip = java.io.File.createTempFile("orvix-export-", ".zip");
+            try (java.io.FileOutputStream fos = new java.io.FileOutputStream(tempZip)) {
+                filesystemService.exportProjectAsZip(name, fos);
+            }
+            
+            java.time.LocalDateTime now = java.time.LocalDateTime.now();
+            java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm");
+            String timestamp = now.format(formatter);
+            String filename = String.format("%s-%s.zip", name, timestamp);
+            
+            final java.io.File finalTempFile = tempZip;
+            org.springframework.core.io.Resource resource = new org.springframework.core.io.FileSystemResource(finalTempFile) {
+                @Override
+                public java.io.InputStream getInputStream() throws java.io.IOException {
+                    return new java.io.FileInputStream(finalTempFile) {
+                        @Override
+                        public void close() throws java.io.IOException {
+                            super.close();
+                            finalTempFile.delete();
+                        }
+                    };
+                }
+            };
+            
+            return ResponseEntity.ok()
+                    .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                    .contentType(org.springframework.http.MediaType.parseMediaType("application/zip"))
+                    .contentLength(finalTempFile.length())
+                    .body(resource);
+            
+        } catch (Exception e) {
+            if (tempZip != null && tempZip.exists()) {
+                tempZip.delete();
+            }
+            return ResponseEntity.status(500).body(java.util.Map.of("error", e.getMessage()));
+        }
+    }
 }
 

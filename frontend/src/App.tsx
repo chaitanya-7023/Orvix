@@ -65,6 +65,12 @@ export default function App() {
   // Automatic Runtime Exception Analysis (Feature 10)
   const [runtimeCrash, setRuntimeCrash] = useState<any | null>(null);
 
+  // Project Export Zip State
+  const [exportState, setExportState] = useState<{
+    stage: "idle" | "preparing" | "compressing" | "creating" | "downloading" | "success" | "failure";
+    errorMsg?: string;
+  }>({ stage: "idle" });
+
   // Monaco editor and auto-save timer refs
   const editorRef = useRef<any>(null);
   const autoSaveTimerRef = useRef<any>(null);
@@ -289,6 +295,79 @@ export default function App() {
     } catch (e) {
       alert("Error saving file: " + e);
     }
+  };
+
+  const triggerDownload = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/projects/${projectName}/export`);
+      if (!response.ok) {
+        const errJson = await response.json().catch(() => ({}));
+        const errorMsg = errJson.error || `HTTP error: ${response.status} ${response.statusText}`;
+        setExportState({ stage: "failure", errorMsg });
+        return;
+      }
+      
+      const blob = await response.blob();
+      const disposition = response.headers.get("content-disposition");
+      let filename = `${projectName}.zip`;
+      if (disposition && disposition.includes("filename=")) {
+        const match = disposition.match(/filename="?([^"]+)"?/);
+        if (match && match[1]) {
+          filename = match[1];
+        }
+      }
+      
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      
+      setExportState({ stage: "success" });
+      setTimeout(() => {
+        setExportState({ stage: "idle" });
+      }, 4000);
+      
+    } catch (error: any) {
+      setExportState({ stage: "failure", errorMsg: error.message || "Network connection failure." });
+    }
+  };
+
+  const handleExportProject = async () => {
+    if (!projectName) return;
+    
+    setExportState({ stage: "preparing" });
+    
+    // Save any unsaved (dirty) files first to prevent changes loss
+    const dirtyFiles = openFiles.filter((f) => f.isDirty);
+    for (const f of dirtyFiles) {
+      try {
+        await fetch(`${API_BASE}/api/projects/${projectName}/files?path=${encodeURIComponent(f.path)}`, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: f.content,
+        });
+        setOpenFiles((prev) =>
+          prev.map((file) => (file.path === f.path ? { ...file, isDirty: false } : file))
+        );
+      } catch (e) {
+        console.error("Failed to auto-save file before export:", f.path, e);
+      }
+    }
+    
+    setTimeout(() => {
+      setExportState({ stage: "compressing" });
+      setTimeout(() => {
+        setExportState({ stage: "creating" });
+        setTimeout(() => {
+          setExportState({ stage: "downloading" });
+          triggerDownload();
+        }, 700);
+      }, 800);
+    }, 800);
   };
 
   // Apply code fix directly into the editor
@@ -619,8 +698,8 @@ export default function App() {
         {/* Action Controls */}
         <div className="flex items-center space-x-2">
           <button
-            onClick={handleSaveActiveFile}
-            disabled={!activeFilePath}
+            onClick={handleExportProject}
+            disabled={!projectName}
             className="flex items-center space-x-1.5 bg-white/5 hover:bg-white/10 border border-white/5 text-slate-200 px-3 py-1.5 text-xs font-semibold rounded-lg disabled:opacity-40 transition-all duration-150"
           >
             <Save size={13} />
@@ -865,6 +944,93 @@ export default function App() {
               >
                 Jump to Error
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Export Workspace ZIP Overlay Modal */}
+      {exportState.stage !== "idle" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm transition-all duration-300">
+          <div className="bg-slate-900/90 border border-white/10 rounded-2xl p-6 w-[420px] shadow-[0_0_50px_rgba(99,102,241,0.25)] text-center relative overflow-hidden backdrop-blur-xl">
+            {/* Ambient Radial Glow */}
+            <div className="absolute -top-24 -left-24 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
+
+            {/* Title / Icon */}
+            <div className="flex flex-col items-center mb-5 select-none">
+              {exportState.stage === "success" && (
+                <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mb-3 animate-bounce">
+                  <Check size={24} />
+                </div>
+              )}
+              {exportState.stage === "failure" && (
+                <div className="w-12 h-12 rounded-full bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 mb-3 animate-pulse">
+                  <AlertTriangle size={24} />
+                </div>
+              )}
+              {["preparing", "compressing", "creating", "downloading"].includes(exportState.stage) && (
+                <div className="w-12 h-12 rounded-full bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400 mb-3 animate-spin">
+                  <RotateCw size={24} />
+                </div>
+              )}
+              <h3 className="font-semibold text-lg text-slate-100">Export Workspace</h3>
+            </div>
+
+            {/* Stages Display */}
+            <div className="space-y-3 mb-6 select-none">
+              {exportState.stage === "preparing" && (
+                <p className="text-sm text-indigo-400 font-medium animate-pulse">Preparing project...</p>
+              )}
+              {exportState.stage === "compressing" && (
+                <p className="text-sm text-indigo-400 font-medium animate-pulse">Compressing files...</p>
+              )}
+              {exportState.stage === "creating" && (
+                <p className="text-sm text-indigo-400 font-medium animate-pulse">Creating ZIP...</p>
+              )}
+              {exportState.stage === "downloading" && (
+                <p className="text-sm text-indigo-400 font-medium animate-pulse">Downloading...</p>
+              )}
+              {exportState.stage === "success" && (
+                <div className="space-y-1">
+                  <p className="text-sm text-emerald-400 font-semibold">✓ Project exported successfully.</p>
+                  <p className="text-xs text-slate-400">ZIP downloaded successfully.</p>
+                </div>
+              )}
+              {exportState.stage === "failure" && (
+                <div className="space-y-2 text-left bg-rose-950/30 border border-rose-500/20 rounded-lg p-3">
+                  <p className="text-xs font-semibold text-rose-400 uppercase tracking-wider">Export Failed</p>
+                  <p className="text-sm text-slate-300 break-words">{exportState.errorMsg}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex justify-center space-x-3">
+              {exportState.stage === "failure" && (
+                <>
+                  <button
+                    onClick={handleExportProject}
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2 text-sm font-semibold rounded-lg transition-all"
+                  >
+                    Retry
+                  </button>
+                  <button
+                    onClick={() => setExportState({ stage: "idle" })}
+                    className="bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 px-5 py-2 text-sm font-semibold rounded-lg transition-all"
+                  >
+                    Close
+                  </button>
+                </>
+              )}
+              {exportState.stage === "success" && (
+                <button
+                  onClick={() => setExportState({ stage: "idle" })}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2 text-sm font-semibold rounded-lg transition-all"
+                >
+                  Done
+                </button>
+              )}
             </div>
           </div>
         </div>
